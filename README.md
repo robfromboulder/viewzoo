@@ -9,7 +9,7 @@ without any dependencies on external databases or object storage.
 ## Dependencies
 
 * Java 23
-* Trino 464
+* Trino 466
 
 ## Configuring Local Environment
 
@@ -20,10 +20,10 @@ export TRINO_HOME=$HOME/...
 
 2. Create $TRINO_HOME/etc/catalog/viewzoo.properties:
 connector.name=viewzoo
-viewzoo.views.dir=/tmp/viewzoo
+viewzoo.dir=/tmp/viewzoo
 
 3. Build the connector and redeploy
-mvn clean package && rm -rf $TRINO_HOME/plugin/viewzoo /tmp/viewzoo && cp -r ./target/viewzoo-464 $TRINO_HOME/plugin/viewzoo && mkdir -p /tmp/viewzoo
+mvn clean package && rm -rf $TRINO_HOME/plugin/viewzoo /tmp/viewzoo && cp -r ./target/viewzoo-466 $TRINO_HOME/plugin/viewzoo && mkdir -p /tmp/viewzoo
 
 4. Start Trino
 cd $TRINO_HOME

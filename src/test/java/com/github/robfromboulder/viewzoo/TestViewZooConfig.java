@@ -10,26 +10,22 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 
-import static io.airlift.configuration.testing.ConfigAssertions.*;
+import static io.airlift.configuration.testing.ConfigAssertions.assertFullMapping;
+import static io.airlift.configuration.testing.ConfigAssertions.assertRecordedDefaults;
+import static io.airlift.configuration.testing.ConfigAssertions.recordDefaults;
 
 public class TestViewZooConfig {
 
     @Test
     public void testDefaults() {
-        assertRecordedDefaults(recordDefaults(ViewZooConfig.class).setViewsDir(null));
+        assertRecordedDefaults(recordDefaults(ViewZooConfig.class).setDir(null));
     }
 
     @Test
     public void testExplicitPropertyMappings() throws IOException {
-        Path p = Files.createTempFile(null, null);
-
-        Map<String, String> properties = new ImmutableMap.Builder<String, String>()
-                .put("viewzoo.views.dir", p.toString())
-                .build();
-
-        ViewZooConfig expected = new ViewZooConfig()
-                .setViewsDir(p.toString());
-
+        Path dir = Files.createTempFile(null, null);
+        Map<String, String> properties = new ImmutableMap.Builder<String, String>().put("viewzoo.dir", dir.toString()).build();
+        ViewZooConfig expected = new ViewZooConfig().setDir(dir.toString());
         assertFullMapping(properties, expected);
     }
 

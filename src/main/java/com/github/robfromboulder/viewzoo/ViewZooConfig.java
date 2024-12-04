@@ -6,15 +6,15 @@ import io.airlift.configuration.Config;
 
 public class ViewZooConfig {
 
-    private String viewsDir = null;
+    private String dir;
 
-    public String getViewsDir() {
-        return viewsDir;
+    public String getDir() {
+        return dir;
     }
 
-    @Config("viewzoo.views.dir")
-    public ViewZooConfig setViewsDir(String dir) {
-        this.viewsDir = dir;
+    @Config("viewzoo.dir")
+    public ViewZooConfig setDir(String s) {
+        this.dir = s;
         return this;
     }
 
