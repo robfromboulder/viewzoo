@@ -62,17 +62,17 @@
         <dependency>
             <groupId>io.airlift</groupId>
             <artifactId>bootstrap</artifactId>
-            <version>288</version>
+            <version>291</version>
         </dependency>
         <dependency>
             <groupId>io.airlift</groupId>
             <artifactId>configuration</artifactId>
-            <version>288</version>
+            <version>291</version>
         </dependency>
         <dependency>
             <groupId>io.airlift</groupId>
             <artifactId>json</artifactId>
-            <version>288</version>
+            <version>291</version>
         </dependency>
         <dependency>
             <groupId>com.google.inject</groupId>
@@ -89,7 +89,7 @@
         <dependency>
             <groupId>io.trino</groupId>
             <artifactId>trino-spi</artifactId>
-            <version>466</version>
+            <version>467</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
@@ -101,7 +101,7 @@
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-annotations</artifactId>
-            <version>2.18.1</version>
+            <version>2.18.2</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
@@ -121,13 +121,13 @@
         <dependency>
             <groupId>io.trino</groupId>
             <artifactId>trino-main</artifactId>
-            <version>466</version>
+            <version>467</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>io.trino</groupId>
             <artifactId>trino-testing</artifactId>
-            <version>466</version>
+            <version>467</version>
             <scope>test</scope>
         </dependency>
         <dependency>

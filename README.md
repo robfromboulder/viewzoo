@@ -9,7 +9,7 @@ without any dependencies on external databases or object storage.
 ## Dependencies
 
 * Java 23
-* Trino 466
+* Trino 467
 
 ## Configuring Local Environment
 
