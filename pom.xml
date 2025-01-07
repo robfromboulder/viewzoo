@@ -6,7 +6,7 @@
 
     <groupId>com.github.robfromboulder</groupId>
     <artifactId>viewzoo</artifactId>
-    <version>466</version>
+    <version>468</version>
     <name>viewzoo</name>
     <description>Lightweight virtual views for Trino</description>
     <url>https://github.com/robfromboulder/viewzoo</url>
@@ -62,17 +62,17 @@
         <dependency>
             <groupId>io.airlift</groupId>
             <artifactId>bootstrap</artifactId>
-            <version>291</version>
+            <version>294</version>
         </dependency>
         <dependency>
             <groupId>io.airlift</groupId>
             <artifactId>configuration</artifactId>
-            <version>291</version>
+            <version>294</version>
         </dependency>
         <dependency>
             <groupId>io.airlift</groupId>
             <artifactId>json</artifactId>
-            <version>291</version>
+            <version>294</version>
         </dependency>
         <dependency>
             <groupId>com.google.inject</groupId>
@@ -89,7 +89,7 @@
         <dependency>
             <groupId>io.trino</groupId>
             <artifactId>trino-spi</artifactId>
-            <version>467</version>
+            <version>468</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
@@ -107,13 +107,13 @@
         <dependency>
             <groupId>io.opentelemetry</groupId>
             <artifactId>opentelemetry-api</artifactId>
-            <version>1.44.1</version>
+            <version>1.45.0</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>io.opentelemetry</groupId>
             <artifactId>opentelemetry-context</artifactId>
-            <version>1.44.1</version>
+            <version>1.45.0</version>
             <scope>provided</scope>
         </dependency>
 
@@ -121,13 +121,13 @@
         <dependency>
             <groupId>io.trino</groupId>
             <artifactId>trino-main</artifactId>
-            <version>467</version>
+            <version>468</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>io.trino</groupId>
             <artifactId>trino-testing</artifactId>
-            <version>467</version>
+            <version>468</version>
             <scope>test</scope>
         </dependency>
         <dependency>
