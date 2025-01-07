@@ -48,4 +48,4 @@ drop view viewzoo.example.hello
 ```
 
 ---
-<small>&copy; 2024 Rob Dickinson (robfromboulder)</small>
+<small>&copy; 2024-2025 Rob Dickinson (robfromboulder)</small>
