@@ -1,11 +1,10 @@
 # viewzoo
-This Trino connector stores logical view definitions on the coordinator filesystem,
-without any dependencies on external databases or object storage.
+This Trino connector stores **virtual views**, which allow improvising, extending, and re-platforming data sources while seamlessly preserving
+compatability with all applications. Virtual views are particularly useful for prototyping and updating existing applications to use Apache Iceberg.
+This is a lightweight connector and does not require configuring a metastore or object storage.
 
-This connector was originally published for my presentation on
-[virtual view hierarchies](https://youtu.be/z8eh_3vBpvg)
-at Trino Summit 2024, and is being maintained as a small way
-to give back to my fellow Trino enthusiasts and data nerds.
+This connector was originally published for my presentation on [virtual view hierarchies](https://youtu.be/z8eh_3vBpvg)
+at Trino Summit 2024, and is being maintained as a small way to give back to the Trino community.
 
 [![CodeFactor](https://www.codefactor.io/repository/github/robfromboulder/viewzoo/badge)](https://www.codefactor.io/repository/github/robfromboulder/viewzoo)
 [![Contributing](https://img.shields.io/badge/contributions-welcome-green.svg)](https://github.com/robfromboulder/viewzoo/blob/main/CONTRIBUTING.md)
