@@ -2,6 +2,11 @@
 This Trino connector stores logical view definitions on the coordinator filesystem,
 without any dependencies on external databases or object storage.
 
+This connector was originally published for my presentation on
+[virtual view hierarchies](https://youtu.be/z8eh_3vBpvg)
+at Trino Summit 2024, and is being maintained as a small way
+to give back to my fellow Trino enthusiasts and data nerds.
+
 [![CodeFactor](https://www.codefactor.io/repository/github/robfromboulder/viewzoo/badge)](https://www.codefactor.io/repository/github/robfromboulder/viewzoo)
 [![Contributing](https://img.shields.io/badge/contributions-welcome-green.svg)](https://github.com/robfromboulder/viewzoo/blob/main/CONTRIBUTING.md)
 [![License](https://img.shields.io/github/license/robfromboulder/viewzoo)](https://github.com/robfromboulder/viewzoo/blob/main/LICENSE)
