@@ -2,6 +2,8 @@
 
 package com.github.robfromboulder.viewzoo;
 
+import com.github.robfromboulder.viewzoo.config.ViewZooBaseConfig;
+import com.github.robfromboulder.viewzoo.config.ViewZooFilesystemConfig;
 import com.google.common.collect.ImmutableMap;
 import org.testng.annotations.Test;
 
@@ -18,14 +20,14 @@ public class TestViewZooConfig {
 
     @Test
     public void testDefaults() {
-        assertRecordedDefaults(recordDefaults(ViewZooConfig.class).setDir(null));
+        assertRecordedDefaults(recordDefaults(ViewZooFilesystemConfig.class).setDir(null));
     }
 
     @Test
     public void testExplicitPropertyMappings() throws IOException {
         Path dir = Files.createTempFile(null, null);
         Map<String, String> properties = new ImmutableMap.Builder<String, String>().put("viewzoo.dir", dir.toString()).build();
-        ViewZooConfig expected = new ViewZooConfig().setDir(dir.toString());
+        ViewZooFilesystemConfig expected = new ViewZooFilesystemConfig().setDir(dir.toString());
         assertFullMapping(properties, expected);
     }
 

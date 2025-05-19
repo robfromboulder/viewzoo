@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
+import com.github.robfromboulder.viewzoo.config.ViewZooJdbcConfig;
 import io.trino.spi.TrinoException;
 import io.trino.spi.connector.ConnectorViewDefinition;
 import io.trino.spi.connector.SchemaTableName;
@@ -14,6 +15,7 @@ import java.util.Map;
 import java.util.Properties;
 
 import static io.trino.spi.StandardErrorCode.GENERIC_INTERNAL_ERROR;
+import static java.util.Objects.requireNonNull;
 
 
 public class ViewZooJdbcClient implements ViewZooStorageClient {
@@ -22,11 +24,13 @@ public class ViewZooJdbcClient implements ViewZooStorageClient {
     private final ObjectMapper mapper;
 
 
-    public ViewZooJdbcClient(String jdbcUrl, String user, String password) {
-        this.jdbcUrl = jdbcUrl;
+    public ViewZooJdbcClient(ViewZooJdbcConfig config) {
+        this.jdbcUrl = requireNonNull(config.getJdbcUrl(), "jdbcUrl is null");
+        String jdbcUser = requireNonNull(config.getJdbcUser(), "jdbcUser is null");
+        String jdbcPassword = requireNonNull(config.getJdbcPassword(), "jdbcPassword is null");
         this.connectionProperties = new Properties();
-        connectionProperties.setProperty("user", user);
-        connectionProperties.setProperty("password", password);
+        connectionProperties.setProperty("user", jdbcUser);
+        connectionProperties.setProperty("password", jdbcPassword);
 
         this.mapper = new ObjectMapper();
         mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);

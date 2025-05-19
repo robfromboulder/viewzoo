@@ -3,6 +3,7 @@ package com.github.robfromboulder.viewzoo.storage;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
+import com.github.robfromboulder.viewzoo.config.ViewZooFilesystemConfig;
 import io.trino.spi.TrinoException;
 import io.trino.spi.connector.ConnectorViewDefinition;
 import io.trino.spi.connector.SchemaTableName;
@@ -24,8 +25,8 @@ public class ViewZooLocalFileSystemClient implements ViewZooStorageClient {
     private final String viewDir;
     private final ObjectMapper mapper;
 
-    public ViewZooLocalFileSystemClient(final String viewDir) {
-        this.viewDir = requireNonNull(viewDir, "viewDir is null");
+    public ViewZooLocalFileSystemClient(ViewZooFilesystemConfig config) {
+        this.viewDir = requireNonNull(config.getDir(), "viewDir is null");
         this.mapper = new ObjectMapper();
         mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         mapper.registerModule(new Jdk8Module());

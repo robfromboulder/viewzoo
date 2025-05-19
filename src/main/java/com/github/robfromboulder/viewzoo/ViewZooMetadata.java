@@ -2,6 +2,7 @@
 
 package com.github.robfromboulder.viewzoo;
 
+import com.github.robfromboulder.viewzoo.config.ViewZooBaseConfig;
 import com.github.robfromboulder.viewzoo.storage.ViewZooJdbcClient;
 import com.github.robfromboulder.viewzoo.storage.ViewZooLocalFileSystemClient;
 import com.github.robfromboulder.viewzoo.storage.ViewZooStorageClient;
@@ -28,36 +29,17 @@ import java.util.Optional;
 
 import static com.google.common.collect.ImmutableList.toImmutableList;
 import static io.trino.spi.StandardErrorCode.ALREADY_EXISTS;
-import static io.trino.spi.StandardErrorCode.CONFIGURATION_INVALID;
 import static io.trino.spi.StandardErrorCode.INVALID_ARGUMENTS;
-import static java.util.Objects.requireNonNull;
 
 public class ViewZooMetadata implements ConnectorMetadata {
 
     @Inject
-    public ViewZooMetadata(ViewZooConfig config) {
-        this.config = requireNonNull(config, "config is null");
-        String storageType = config.getStorageType();
-
-        if (storageType.equals("filesystem")) {
-            if (config.getDir() != null) {
-                storageClient = new ViewZooLocalFileSystemClient(config.getDir());
-            }
-            else {
-                throw new TrinoException(CONFIGURATION_INVALID, "Configuration viewzoo.dir not set");
-            }
-        }
-        else if (storageType.equals("jdbc")) {
-            storageClient = new ViewZooJdbcClient(config.getJdbcUrl(), config.getJdbcUser(), config.getJdbcPassword());
-        }
-        else {
-            throw new TrinoException(CONFIGURATION_INVALID, "Unsupported storage type: " + storageType);
-        }
+    public ViewZooMetadata(ViewZooStorageClient storageClient) {
+        this.storageClient = storageClient;
 
         buildViews();
     }
 
-    private final ViewZooConfig config;
     private final ViewZooStorageClient storageClient;
     private Map<SchemaTableName, ConnectorViewDefinition> views;
 
@@ -84,9 +66,6 @@ public class ViewZooMetadata implements ConnectorMetadata {
 
     @Override
     public synchronized void dropView(ConnectorSession session, SchemaTableName stn) {
-        if (config.getDir() == null)
-            throw new TrinoException(CONFIGURATION_INVALID, "Not configured for persistent views");
-
         if (views.remove(stn) == null) throw new ViewNotFoundException(stn);
 
         String schema = stn.getSchemaName();
