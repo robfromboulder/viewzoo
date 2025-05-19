@@ -17,7 +17,7 @@ at Trino Summit 2024, and is being maintained as a small way to give back to the
 
 ## ViewZoo Configurations
 ```
-viewzoo.storage_type - Where the views will be stored, Either "filsystem" (default) or "jdbc".
+viewzoo.storage_type - Where the views will be stored, Either "filesystem" (default) or "jdbc".
 # If viewzoo.storage_type=filesystem
 viewzoo.dir
 # If viewzoo.storage_type=jdbc

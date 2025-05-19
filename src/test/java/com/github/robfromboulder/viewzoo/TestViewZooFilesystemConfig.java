@@ -15,7 +15,7 @@ import static io.airlift.configuration.testing.ConfigAssertions.assertFullMappin
 import static io.airlift.configuration.testing.ConfigAssertions.assertRecordedDefaults;
 import static io.airlift.configuration.testing.ConfigAssertions.recordDefaults;
 
-public class TestViewZooConfig {
+public class TestViewZooFilesystemConfig {
 
     @Test
     public void testDefaults() {
