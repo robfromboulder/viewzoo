@@ -24,7 +24,7 @@ public class ViewZooJdbcClient implements ViewZooStorageClient {
     private final ObjectMapper mapper;
 
 
-    public ViewZooJdbcClient(ViewZooJdbcConfig config) {
+    public ViewZooJdbcClient(ViewZooJdbcConfig config, ObjectMapper mapper) {
         this.jdbcUrl = requireNonNull(config.getJdbcUrl(), "jdbcUrl is null");
         String jdbcUser = requireNonNull(config.getJdbcUser(), "jdbcUser is null");
         String jdbcPassword = requireNonNull(config.getJdbcPassword(), "jdbcPassword is null");
@@ -32,9 +32,7 @@ public class ViewZooJdbcClient implements ViewZooStorageClient {
         connectionProperties.setProperty("user", jdbcUser);
         connectionProperties.setProperty("password", jdbcPassword);
 
-        this.mapper = new ObjectMapper();
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-        mapper.registerModule(new Jdk8Module());
+        this.mapper = mapper;
 
         initializeViewStore();
     }
@@ -76,9 +74,12 @@ public class ViewZooJdbcClient implements ViewZooStorageClient {
             }
 
             return viewDefinitions;
-        } catch (SQLException | JsonProcessingException e) {
+        } catch (SQLException e) {
             throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to retrieve view definitions: " + e.getMessage());
+        } catch (JsonProcessingException e) {
+            throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to parse view definitions: " + e.getMessage());
         }
+
     }
 
     @Override

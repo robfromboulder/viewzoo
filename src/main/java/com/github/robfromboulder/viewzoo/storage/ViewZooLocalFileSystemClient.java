@@ -25,11 +25,9 @@ public class ViewZooLocalFileSystemClient implements ViewZooStorageClient {
     private final String viewDir;
     private final ObjectMapper mapper;
 
-    public ViewZooLocalFileSystemClient(ViewZooFilesystemConfig config) {
+    public ViewZooLocalFileSystemClient(ViewZooFilesystemConfig config, ObjectMapper mapper) {
         this.viewDir = requireNonNull(config.getDir(), "viewDir is null");
-        this.mapper = new ObjectMapper();
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-        mapper.registerModule(new Jdk8Module());
+        this.mapper = mapper;
     }
 
     @Override
