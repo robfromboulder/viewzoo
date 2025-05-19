@@ -1,8 +1,6 @@
 package com.github.robfromboulder.viewzoo.storage;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import com.github.robfromboulder.viewzoo.config.ViewZooFilesystemConfig;
 import io.trino.spi.TrinoException;
 import io.trino.spi.connector.ConnectorViewDefinition;

@@ -1,15 +1,18 @@
 package com.github.robfromboulder.viewzoo.storage;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import com.github.robfromboulder.viewzoo.config.ViewZooJdbcConfig;
 import io.trino.spi.TrinoException;
 import io.trino.spi.connector.ConnectorViewDefinition;
 import io.trino.spi.connector.SchemaTableName;
 
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.ResultSet;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
@@ -92,8 +95,10 @@ public class ViewZooJdbcClient implements ViewZooStorageClient {
             statement.setString(2, table);
             statement.setString(3, mapper.writeValueAsString(definition));
             statement.executeUpdate();
-        } catch (SQLException | JsonProcessingException e) {
+        } catch (SQLException e) {
             throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to insert view definition: " + e.getMessage());
+        } catch (JsonProcessingException e) {
+            throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to serialize view definition: " + e.getMessage());
         }
     }
 

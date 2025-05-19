@@ -2,7 +2,6 @@
 
 package com.github.robfromboulder.viewzoo;
 
-import com.github.robfromboulder.viewzoo.config.ViewZooBaseConfig;
 import com.github.robfromboulder.viewzoo.config.ViewZooFilesystemConfig;
 import com.google.common.collect.ImmutableMap;
 import org.testng.annotations.Test;
