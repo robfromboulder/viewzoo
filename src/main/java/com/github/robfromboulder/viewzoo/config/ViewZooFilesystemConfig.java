@@ -1,10 +1,10 @@
 // © 2024-2025 Rob Dickinson (robfromboulder)
 
-package com.github.robfromboulder.viewzoo;
+package com.github.robfromboulder.viewzoo.config;
 
 import io.airlift.configuration.Config;
 
-public class ViewZooConfig {
+public class ViewZooFilesystemConfig {
 
     private String dir;
 
@@ -13,8 +13,8 @@ public class ViewZooConfig {
     }
 
     @Config("viewzoo.dir")
-    public ViewZooConfig setDir(String s) {
-        this.dir = s;
+    public ViewZooFilesystemConfig setDir(String dir) {
+        this.dir = dir;
         return this;
     }
 

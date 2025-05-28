@@ -15,6 +15,18 @@ at Trino Summit 2024, and is being maintained as a small way to give back to the
 * Java 23
 * Trino 470
 
+## ViewZoo Configurations
+```
+viewzoo.storage_type - Where the views will be stored, Either "filesystem" (default) or "jdbc".
+# If viewzoo.storage_type=filesystem
+viewzoo.dir
+# If viewzoo.storage_type=jdbc
+viewzoo.jdbc_url
+viewzoo.jdbc_user
+viewzoo.jdbc_password
+```
+
+
 ## Configuring Local Environment
 
 ```
@@ -41,7 +53,7 @@ Create a view with a static result set:
 create or replace view viewzoo.example.hello as select * from (values (1, 'a'), (2, 'b'), (3, 'c')) as t (key, value)
 ```
 
-Select rows from the view: 
+Select rows from the view:
 ```sql
 select * from viewzoo.example.hello
 ```
