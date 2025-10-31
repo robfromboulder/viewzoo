@@ -14,9 +14,11 @@ public class ViewZooJdbcConfig {
     public String getJdbcUrl() {
         return jdbcUrl;
     }
+
     public String getJdbcUser() {
         return jdbcUser;
     }
+
     public String getJdbcPassword() {
         return jdbcPassword;
     }

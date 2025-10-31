@@ -1,3 +1,5 @@
+// © 2024-2025 Rob Dickinson (robfromboulder)
+
 package com.github.robfromboulder.viewzoo.config;
 
 import com.google.common.collect.ImmutableMap;

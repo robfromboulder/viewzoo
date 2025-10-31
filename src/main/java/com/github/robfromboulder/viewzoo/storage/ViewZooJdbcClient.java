@@ -1,3 +1,5 @@
+// © 2024-2025 Rob Dickinson (robfromboulder)
+
 package com.github.robfromboulder.viewzoo.storage;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -10,9 +12,9 @@ import io.trino.spi.connector.SchemaTableName;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.sql.ResultSet;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
