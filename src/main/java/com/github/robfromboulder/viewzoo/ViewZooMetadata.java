@@ -33,7 +33,7 @@ public class ViewZooMetadata implements ConnectorMetadata {
     @Inject
     public ViewZooMetadata(ViewZooStorageClient storageClient) {
         this.storageClient = storageClient;
-        this.views = storageClient.getViews();;
+        this.views = storageClient.getViews();
     }
 
     private final ViewZooStorageClient storageClient;
