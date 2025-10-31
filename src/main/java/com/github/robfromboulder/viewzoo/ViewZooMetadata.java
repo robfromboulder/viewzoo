@@ -2,9 +2,6 @@
 
 package com.github.robfromboulder.viewzoo;
 
-import com.github.robfromboulder.viewzoo.config.ViewZooBaseConfig;
-import com.github.robfromboulder.viewzoo.storage.ViewZooJdbcClient;
-import com.github.robfromboulder.viewzoo.storage.ViewZooLocalFileSystemClient;
 import com.github.robfromboulder.viewzoo.storage.ViewZooStorageClient;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
@@ -36,16 +33,11 @@ public class ViewZooMetadata implements ConnectorMetadata {
     @Inject
     public ViewZooMetadata(ViewZooStorageClient storageClient) {
         this.storageClient = storageClient;
-
-        buildViews();
+        this.views = storageClient.getViews();;
     }
 
     private final ViewZooStorageClient storageClient;
-    private Map<SchemaTableName, ConnectorViewDefinition> views;
-
-    private synchronized void buildViews() {
-        views = storageClient.getViews();
-    }
+    private final Map<SchemaTableName, ConnectorViewDefinition> views;
 
     @Override
     public synchronized void createView(ConnectorSession session, SchemaTableName stn, ConnectorViewDefinition definition, Map<String, Object> viewProperties, boolean replace) {
@@ -60,14 +52,12 @@ public class ViewZooMetadata implements ConnectorMetadata {
         } else if (views.putIfAbsent(stn, definition) != null) {
             throw new TrinoException(ALREADY_EXISTS, "View already exists: " + stn);
         }
-
         storageClient.createView(schema, table, definition);
     }
 
     @Override
     public synchronized void dropView(ConnectorSession session, SchemaTableName stn) {
         if (views.remove(stn) == null) throw new ViewNotFoundException(stn);
-
         String schema = stn.getSchemaName();
         String table = stn.getTableName();
         storageClient.dropView(schema, table);
