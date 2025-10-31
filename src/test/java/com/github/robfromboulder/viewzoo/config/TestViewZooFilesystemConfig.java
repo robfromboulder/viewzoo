@@ -1,8 +1,7 @@
 // © 2024-2025 Rob Dickinson (robfromboulder)
 
-package com.github.robfromboulder.viewzoo;
+package com.github.robfromboulder.viewzoo.config;
 
-import com.github.robfromboulder.viewzoo.config.ViewZooFilesystemConfig;
 import com.google.common.collect.ImmutableMap;
 import org.testng.annotations.Test;
 
