@@ -27,7 +27,7 @@ Download Trino 470, and export `TRINO_HOME` as a shell variable:
 export TRINO_HOME=$HOME/Downloads/trino-470
 ```
 
-Build and install viewzoo:
+Build and install connector:
 ```bash
 mvn clean package && rm -rf $TRINO_HOME/plugin/viewzoo && cp -r ./target/viewzoo-470 $TRINO_HOME/plugin/viewzoo
 ```
