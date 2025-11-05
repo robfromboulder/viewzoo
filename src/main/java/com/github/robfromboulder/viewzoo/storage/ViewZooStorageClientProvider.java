@@ -15,12 +15,9 @@ import io.trino.spi.TrinoException;
 import static io.trino.spi.StandardErrorCode.CONFIGURATION_INVALID;
 
 public class ViewZooStorageClientProvider implements Provider<ViewZooStorageClient> {
+
     @Inject
-    public ViewZooStorageClientProvider(
-            ViewZooBaseConfig config,
-            ViewZooJdbcConfig jdbcConfig,
-            ViewZooFilesystemConfig filesystemConfig
-    ) {
+    public ViewZooStorageClientProvider(ViewZooBaseConfig config, ViewZooJdbcConfig jdbcConfig, ViewZooFilesystemConfig filesystemConfig) {
         this.config = config;
         this.jdbcConfig = jdbcConfig;
         this.filesystemConfig = filesystemConfig;
@@ -35,11 +32,11 @@ public class ViewZooStorageClientProvider implements Provider<ViewZooStorageClie
         ObjectMapper mapper = new ObjectMapper();
         mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         mapper.registerModule(new Jdk8Module());
-
         return switch (config.getStorageType().toLowerCase()) {
             case "jdbc" -> new ViewZooJdbcClient(jdbcConfig, mapper);
             case "filesystem" -> new ViewZooLocalFileSystemClient(filesystemConfig, mapper);
             default -> throw new TrinoException(CONFIGURATION_INVALID, "Invalid viewzoo.storage_type: " + config.getStorageType());
         };
     }
+
 }
