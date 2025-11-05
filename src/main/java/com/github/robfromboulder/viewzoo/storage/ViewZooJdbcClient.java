@@ -22,38 +22,21 @@ import java.util.Properties;
 import static io.trino.spi.StandardErrorCode.GENERIC_INTERNAL_ERROR;
 import static java.util.Objects.requireNonNull;
 
-
 public class ViewZooJdbcClient implements ViewZooStorageClient {
-    private final String jdbcUrl;
-    private final Properties connectionProperties;
-    private final ObjectMapper mapper;
-
 
     public ViewZooJdbcClient(ViewZooJdbcConfig config, ObjectMapper mapper) {
-        this.jdbcUrl = requireNonNull(config.getJdbcUrl(), "jdbcUrl is null");
-        String jdbcUser = requireNonNull(config.getJdbcUser(), "jdbcUser is null");
-        String jdbcPassword = requireNonNull(config.getJdbcPassword(), "jdbcPassword is null");
-        this.connectionProperties = new Properties();
-        connectionProperties.setProperty("user", jdbcUser);
-        connectionProperties.setProperty("password", jdbcPassword);
-
         this.mapper = mapper;
 
-        initializeViewStore();
-    }
+        // read configuration
+        this.properties = new Properties();
+        properties.setProperty("user", requireNonNull(config.getJdbcUser(), "jdbcUser is null"));
+        properties.setProperty("password", requireNonNull(config.getJdbcPassword(), "jdbcPassword is null"));
+        this.url = requireNonNull(config.getJdbcUrl(), "jdbcUrl is null");
 
-    public Connection getConnection() throws SQLException {
-        return DriverManager.getConnection(jdbcUrl, connectionProperties);
-    }
-
-    private void initializeViewStore() {
+        // initialize database
         try (Connection connection = getConnection()) {
-            String createViewDefTableSql = "CREATE TABLE IF NOT EXISTS viewzoo (" +
-                    "schema VARCHAR(255), " +
-                    "view_name VARCHAR(255), " +
-                    "definition TEXT, " +
-                    "PRIMARY KEY (schema, view_name))";
-            try (PreparedStatement statement = connection.prepareStatement(createViewDefTableSql)) {
+            String sql = "CREATE TABLE IF NOT EXISTS viewzoo (schema VARCHAR(255), view_name VARCHAR(255), definition TEXT, PRIMARY KEY (schema, view_name))";
+            try (PreparedStatement statement = connection.prepareStatement(sql)) {
                 statement.execute();
             }
         } catch (SQLException e) {
@@ -61,24 +44,28 @@ public class ViewZooJdbcClient implements ViewZooStorageClient {
         }
     }
 
+    private final ObjectMapper mapper;
+    private final Properties properties;
+    private final String url;
+
+    public Connection getConnection() throws SQLException {
+        return DriverManager.getConnection(url, properties);
+    }
+
     @Override
     public Map<SchemaTableName, ConnectorViewDefinition> getViews() {
-        String getViewDefsTableSql = "SELECT schema, view_name, definition FROM viewzoo";
-        Map<SchemaTableName, ConnectorViewDefinition> viewDefinitions = new HashMap<>();
-
         try (Connection connection = getConnection()) {
+            Map<SchemaTableName, ConnectorViewDefinition> views = new HashMap<>();
             Statement statement = connection.createStatement();
-            ResultSet resultSet = statement.executeQuery(getViewDefsTableSql);
+            ResultSet resultSet = statement.executeQuery("SELECT schema, view_name, definition FROM viewzoo");
             while (resultSet.next()) {
                 String schemaName = resultSet.getString("schema");
                 String viewName = resultSet.getString("view_name");
                 String definitionText = resultSet.getString("definition");
-
                 ConnectorViewDefinition def = mapper.readValue(definitionText, ConnectorViewDefinition.class);
-                viewDefinitions.put(new SchemaTableName(schemaName, viewName), def);
+                views.put(new SchemaTableName(schemaName, viewName), def);
             }
-
-            return viewDefinitions;
+            return views;
         } catch (SQLException e) {
             throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to retrieve view definitions: " + e.getMessage());
         } catch (JsonProcessingException e) {
@@ -89,10 +76,8 @@ public class ViewZooJdbcClient implements ViewZooStorageClient {
 
     @Override
     public void createView(String schema, String table, ConnectorViewDefinition definition) {
-        String createViewSql = "INSERT INTO viewzoo VALUES (?, ?, ?)";
-
         try (Connection connection = getConnection()) {
-            PreparedStatement statement = connection.prepareStatement(createViewSql);
+            PreparedStatement statement = connection.prepareStatement("INSERT INTO viewzoo VALUES (?, ?, ?)");
             statement.setString(1, schema);
             statement.setString(2, table);
             statement.setString(3, mapper.writeValueAsString(definition));
@@ -106,10 +91,8 @@ public class ViewZooJdbcClient implements ViewZooStorageClient {
 
     @Override
     public void dropView(String schema, String table) {
-        String createViewSql = "DELETE FROM viewzoo WHERE schema=? AND view_name=?";
-
         try (Connection connection = getConnection()) {
-            PreparedStatement statement = connection.prepareStatement(createViewSql);
+            PreparedStatement statement = connection.prepareStatement("DELETE FROM viewzoo WHERE schema=? AND view_name=?");
             statement.setString(1, schema);
             statement.setString(2, table);
             statement.executeUpdate();
@@ -117,4 +100,5 @@ public class ViewZooJdbcClient implements ViewZooStorageClient {
             throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to delete view definition: " + e.getMessage());
         }
     }
+
 }

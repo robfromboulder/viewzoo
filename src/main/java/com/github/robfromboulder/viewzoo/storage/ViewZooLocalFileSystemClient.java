@@ -20,24 +20,20 @@ import static io.trino.spi.StandardErrorCode.CONFIGURATION_INVALID;
 import static io.trino.spi.StandardErrorCode.GENERIC_INTERNAL_ERROR;
 import static java.util.Objects.requireNonNull;
 
-
 public class ViewZooLocalFileSystemClient implements ViewZooStorageClient {
-    private final String viewDir;
-    private final ObjectMapper mapper;
 
     public ViewZooLocalFileSystemClient(ViewZooFilesystemConfig config, ObjectMapper mapper) {
-        this.viewDir = requireNonNull(config.getDir(), "viewDir is null");
+        this.dir = new File(requireNonNull(config.getDir(), "viewDir is null"));
         this.mapper = mapper;
     }
 
+    private final File dir;
+    private final ObjectMapper mapper;
+
     @Override
     public Map<SchemaTableName, ConnectorViewDefinition> getViews() {
-        File dir = new File(viewDir);
         Map<SchemaTableName, ConnectorViewDefinition> views = new HashMap<>();
-
-        if (!dir.isDirectory() && !dir.mkdirs())
-            throw new TrinoException(CONFIGURATION_INVALID, "Unable to access directory: " + viewDir);
-
+        if (!dir.isDirectory() && !dir.mkdirs()) throw new TrinoException(CONFIGURATION_INVALID, "Unable to access directory: " + dir);
         for (File f : Stream.of(requireNonNull(dir.listFiles())).filter(f -> !f.isHidden() && f.getName().endsWith(".json")).toList()) {
             try {
                 ConnectorViewDefinition def = mapper.readValue(f, ConnectorViewDefinition.class);
@@ -49,14 +45,13 @@ public class ViewZooLocalFileSystemClient implements ViewZooStorageClient {
                 throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to read file: " + f);
             }
         }
-
         return views;
     }
 
     @Override
     public void createView(String schema, String table, ConnectorViewDefinition definition) {
         try {
-            File f = new File(new File(viewDir), schema + "." + table + ".json");
+            File f = new File(dir, schema + "." + table + ".json");
             Files.writeString(Paths.get(f.toURI()), mapper.writeValueAsString(definition));
         } catch (IOException e) {
             throw new TrinoException(GENERIC_INTERNAL_ERROR, e.getMessage());
@@ -66,10 +61,11 @@ public class ViewZooLocalFileSystemClient implements ViewZooStorageClient {
     @Override
     public void dropView(String schema, String table) {
         try {
-            File f = new File(new File(viewDir), schema + "." + table + ".json");
+            File f = new File(dir, schema + "." + table + ".json");
             Files.deleteIfExists(Paths.get(f.toURI()));
         } catch (IOException e) {
             throw new TrinoException(GENERIC_INTERNAL_ERROR, e.getMessage());
         }
     }
+
 }
