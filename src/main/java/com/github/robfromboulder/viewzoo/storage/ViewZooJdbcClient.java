@@ -77,7 +77,7 @@ public class ViewZooJdbcClient implements ViewZooStorageClient {
     @Override
     public void createView(String schema, String table, ConnectorViewDefinition definition) {
         try (Connection connection = getConnection()) {
-            PreparedStatement statement = connection.prepareStatement("INSERT INTO viewzoo VALUES (?, ?, ?)");
+            PreparedStatement statement = connection.prepareStatement("INSERT INTO viewzoo VALUES (?, ?, ?) on conflict (schema, view_name) do update set definition = EXCLUDED.definition");
             statement.setString(1, schema);
             statement.setString(2, table);
             statement.setString(3, mapper.writeValueAsString(definition));
