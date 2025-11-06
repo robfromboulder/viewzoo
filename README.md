@@ -5,8 +5,8 @@ hierarchies of views that can be swapped out at runtime. This connector stores v
 Postgresql database, without requiring any other infrastructure.
 
 [![CodeFactor](https://www.codefactor.io/repository/github/robfromboulder/viewzoo/badge)](https://www.codefactor.io/repository/github/robfromboulder/viewzoo)
-[![Contributing](https://img.shields.io/badge/contributions-welcome-green.svg)](https://github.com/robfromboulder/viewzoo/blob/v470/CONTRIBUTING.md)
-[![License](https://img.shields.io/github/license/robfromboulder/viewzoo)](https://github.com/robfromboulder/viewzoo/blob/v470/LICENSE)
+[![Contributing](https://img.shields.io/badge/contributions-welcome-green.svg)](https://github.com/robfromboulder/viewzoo/blob/v475/CONTRIBUTING.md)
+[![License](https://img.shields.io/github/license/robfromboulder/viewzoo)](https://github.com/robfromboulder/viewzoo/blob/v475/LICENSE)
 
 Presentation at Trino Summit 2024:<br/>
 [![Link to Trino Summit 2024 Presentation](https://img.youtube.com/vi/z8eh_3vBpvg/0.jpg)](https://www.youtube.com/watch?v=z8eh_3vBpvg)
@@ -15,21 +15,21 @@ Many thanks to **Roey Ogen** and **[@MirerRon](https://github.com/MirerRon)** fo
 
 ## Dependencies
 
-* Trino 470
+* Trino 475
 * Java 23
 * Maven 3.9.8 or higher
 * Postgresql 10 or higher (optional)
 
 ## Installation
 
-Download Trino 470, and export `TRINO_HOME` as a shell variable:
+Download Trino 475, and export `TRINO_HOME` as a shell variable:
 ```bash
-export TRINO_HOME=$HOME/Downloads/trino-470
+export TRINO_HOME=$HOME/Downloads/trino-475
 ```
 
 Build and install connector:
 ```bash
-mvn clean package && rm -rf $TRINO_HOME/plugin/viewzoo && cp -r ./target/viewzoo-470 $TRINO_HOME/plugin/viewzoo
+mvn clean package && rm -rf $TRINO_HOME/plugin/viewzoo && cp -r ./target/viewzoo-475 $TRINO_HOME/plugin/viewzoo
 ```
 
 > [!WARNING]
