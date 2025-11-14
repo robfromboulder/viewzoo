@@ -98,18 +98,83 @@ Connect your favorite SQL client (like [DBeaver](https://dbeaver.io/) or [Trino 
 
 Create a virtual view with static data:
 ```sql
-create or replace view viewzoo.example.hello as select * from (values (1, 'a'), (2, 'b'), (3, 'c')) as t (key, value)
+create view viewzoo.example.hello as select * from (values (1, 'a')) as t (key, value)
 ```
 
 Select rows from the view:
 ```sql
-select * from viewzoo.example.hello where key > 1
+select * from viewzoo.example.hello
+```
+
+Examine current view definition: 
+```sql
+show create view viewzoo.example.hello
 ```
 
 Delete the view:
 ```sql
 drop view viewzoo.example.hello
 ```
+
+## Using Virtual View Hierarchies
+
+Let's create a base view first, using static data:
+```sql
+create view viewzoo.example.base as select * from (values (1, 'a'), (2, 'b'), (3, 'c')) as t (key, value)
+```
+
+Next create a dependent view to do filtering:
+```sql
+create view viewzoo.example.filtered as select * from viewzoo.example.base where true
+```
+
+Next create a dependent view to add computed columns:
+```sql
+create view viewzoo.example.enhanced as select *, random(100) as rand from viewzoo.example.filtered
+```
+
+Finish with a stable application-level view:
+```sql
+create view viewzoo.example.main as select * from viewzoo.example.enhanced
+```
+
+Finally the application has a stable top-level view that provides data:
+```sql
+select * from viewzoo.example.main
+```
+
+Now that the view hierarchy is defined, we can start changing layers at any time! 🤩
+
+Let's force random computed columns to zero for testing (without updating any other views):
+```sql
+create or replace view viewzoo.example.enhanced as select *, 0 as rand from viewzoo.example.filtered
+```
+
+Let's swap out the filtering layer for a different version (without updating any other views):
+```sql
+create or replace view viewzoo.example.filtered as select * from viewzoo.example.base where key not in (2)
+```
+
+Let's swap out the base view with real data from Postgresql (without updating any other views):
+```sql
+create or replace view viewzoo.example.base as select * from postgres.example.base_v2.1
+```
+
+This ability to easily replace views within a hierarchy is especially helpful for:
+* Swapping between static/test datasets and real databases
+* Simulating failures and testing systems with invalid data states
+* Implementing right-to-be-forgotten masking layers on top of existing schemas
+* Configuring computed column definitions at runtime (based on user settings)
+* Managing JOINs/UNIONs and replication state between traditional and Iceberg storage
+* Hiding schema versioning so that the application sees the right version
+
+## Limitations
+
+> [!CAUTION]
+> There is no way to "lock" a view in order to change its definition. Queries will use the version of the view active when the query plan is created. Changing a view definition doesn't terminate or restart any queries running when the definition is changed.
+
+> [!CAUTION]
+> Trino detects and prevents recursive view definitions, since these would cause infinite loops.
 
 ---
 <small>&copy; 2024-2025 Rob Dickinson (robfromboulder)</small>
