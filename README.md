@@ -4,6 +4,7 @@ with all applications. Virtual views are especially useful for prototyping, when
 hierarchies of views that can be swapped out at runtime. This connector stores virtual views to the Trino server's local filesystem, or to a local or remote
 Postgresql database, without requiring any other infrastructure.
 
+[![Claude Code](https://img.shields.io/badge/Built%20with%20Claude%20Code-6366f1?logo=claude&logoColor=white)](https://claude.ai/code)
 [![CodeFactor](https://www.codefactor.io/repository/github/robfromboulder/viewzoo/badge)](https://www.codefactor.io/repository/github/robfromboulder/viewzoo)
 [![Contributing](https://img.shields.io/badge/contributions-welcome-green.svg)](https://github.com/robfromboulder/viewzoo/blob/v478/CONTRIBUTING.md)
 [![License](https://img.shields.io/github/license/robfromboulder/viewzoo)](https://github.com/robfromboulder/viewzoo/blob/v478/LICENSE)
