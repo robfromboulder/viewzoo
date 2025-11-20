@@ -1,15 +1,17 @@
 # Contributing to viewzoo
 
-## Coding Conventions
+## Using Claude Code
 
-Our code style is whatever IntelliJ IDEA does by default, with the exception of allowing lines up to 130 characters.
-If you don't use IDEA, that's ok, but your code may get reformatted.
+This project uses (but does not require) [Claude Code](https://claude.ai/code) for help with development, testing, and maintenance. The `CLAUDE.md` file provides project context for Claude Code sessions.
+
+If you haven't used Claude Code yet, these resources are super helpful:
+* https://code.claude.com/docs
+* https://www.anthropic.com/engineering/claude-code-best-practices
+* https://www.siddharthbharath.com/claude-code-the-complete-guide/
 
 ## Branching and Versioning
 
-Trino uses only major version numbers for its releases, and breaking changes can be introduced with any new version.
-
-To support this, viewzoo uses a separate branch for each Trino version:
+Trino uses only major version numbers for its releases, and breaking changes can be introduced with any new version. To support this, viewzoo uses a separate branch for each Trino version:
 - Each version branch is compatible with that one specific Trino version
 - New version branches are created from the previous version branch
 - Changes to version branches are not merged back to main
@@ -32,3 +34,8 @@ This workflow allows you to easily create your own copy of viewzoo, try out some
 ```
 mvn versions:display-dependency-updates
 ```
+
+## Coding Conventions
+
+Our code style is whatever IntelliJ IDEA does by default, with the exception of allowing lines up to 130 characters.
+If you don't use IDEA, that's ok, but your code may get reformatted.
