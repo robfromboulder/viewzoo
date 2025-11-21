@@ -23,19 +23,42 @@ This workflow allows you to easily create your own copy of viewzoo, try out some
 
 1. Create a fork of robfromboulder/viewzoo
 2. Create a feature branch from the latest version branch
-3. Build and test local changes
-4. Commit changes to your feature branch
-5. Open a pull request targeting the latest version branch
-6. Participate in code review
-7. Celebrate your accomplishment
-
-## Applying Security Updates
-
-```
-mvn versions:display-dependency-updates
-```
+3. Build and test your local changes
+4. Add or update [integration tests](#running-integration-tests)
+5. Commit changes to your feature branch
+6. Open a pull request targeting the latest version branch
+7. Participate in code review
+8. Celebrate your accomplishment
 
 ## Coding Conventions
 
-Our code style is whatever IntelliJ IDEA does by default, with the exception of allowing lines up to 130 characters.
-If you don't use IDEA, that's ok, but your code may get reformatted.
+Our code style is whatever IntelliJ IDEA does by default, with the exception of allowing lines up to 130 characters. If you don't use IDEA, that's ok, but your code may get reformatted later.
+
+All source files should use this copyright statement:
+```
+© 2024-2025 Rob Dickinson (robfromboulder)
+```
+
+## Applying Security Updates
+
+Scan for newer library versions:
+```bash
+mvn versions:display-dependency-updates
+```
+
+Scan for known vulnerabilities:
+```bash
+trivy filesystem .
+```
+
+## Running Integration Tests
+
+```bash
+mvn test -Pintegration
+```
+
+> [!CAUTION]
+> Integration tests require `docker-compose` and network access to download Postgresql and Trino containers.
+
+> [!TIP]
+> Integration tests use port 7720 (Postgresql) and port 7721 (Trino) to avoid conflict with other running services.
