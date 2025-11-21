@@ -61,4 +61,4 @@ mvn test -Pintegration
 > Integration tests require `docker-compose` and network access to download Postgresql and Trino containers.
 
 > [!TIP]
-> Integration tests use port 7720 (Postgresql) and port 7721 (Trino) to avoid conflict with other running services.
+> Integration tests use port 7720 (Postgresql) and port 7721 (Trino) to avoid conflict with local services.
