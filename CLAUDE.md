@@ -33,6 +33,9 @@ mvn clean package && rm -rf $TRINO_HOME/plugin/viewzoo && cp -r ./target/viewzoo
 
 # Check dependency updates
 mvn versions:display-dependency-updates
+
+# Run integration tests
+mvn test -Pintegration
 ```
 
 ## Architecture
@@ -64,6 +67,16 @@ mvn versions:display-dependency-updates
 - **Synchronized Access**: ViewZooMetadata uses synchronized methods for thread safety
 - **In-Memory Caching**: Views loaded once at startup, not watched for external changes
 - **Singleton Scope**: Connector, Metadata, and StorageClient are Guice singletons
+
+## Integration Tests
+
+Integration tests use Docker Compose to run PostgreSQL and Trino with the viewzoo connector.
+
+- **Location**: `src/test/docker/` contains docker-compose.yml and Trino catalog configs
+- **Catalogs**: Tests run against both `testjdbc` (PostgreSQL storage) and `testfs` (filesystem storage)
+- **Ports**: Uses non-standard ports (7720 for PostgreSQL, 7721 for Trino) to avoid conflicts
+- **Requirements**: Docker must be running; plugin must be built first with `mvn clean package`
+- **Environment**: Tests set `PROJECT_ROOT` env var to locate the built plugin
 
 ## Technical Details
 
