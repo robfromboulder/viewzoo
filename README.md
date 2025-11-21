@@ -59,7 +59,7 @@ cd $TRINO_HOME && bash bin/launcher run
 ```
 
 > [!CAUTION]
-> Trino will fail to start if `viewzoo.dir` does not exist, or if Trino doesn't have read access to this directory.
+> Trino will fail to start if `viewzoo.dir` does not exist, or if Trino doesn't have read and write access to this directory.
 
 ## Running With JDBC Storage
 
@@ -102,6 +102,11 @@ Create a virtual view with static data:
 create view viewzoo.example.hello as select * from (values (1, 'a')) as t (key, value)
 ```
 
+Replace a virtual view with different static data:
+```sql
+create or replace view viewzoo.example.hello as select * from (values (1, 'a'), (2, 'b')) as t (key, value)
+```
+
 Select rows from the view:
 ```sql
 select * from viewzoo.example.hello
@@ -124,9 +129,9 @@ Let's create a base view first, using static data:
 create view viewzoo.example.base as select * from (values (1, 'a'), (2, 'b'), (3, 'c')) as t (key, value)
 ```
 
-Next create a dependent view to do filtering:
+Next create a dependent view to do filtering (letting all rows through at first):
 ```sql
-create view viewzoo.example.filtered as select * from viewzoo.example.base where true
+create view viewzoo.example.filtered as select * from viewzoo.example.base where (true)
 ```
 
 Next create a dependent view to add computed columns:
@@ -144,38 +149,57 @@ Finally the application has a stable top-level view that provides data:
 select * from viewzoo.example.main
 ```
 
-Now that the view hierarchy is defined, we can start changing layers at any time! 🤩
+```mermaid
+flowchart TD
+    viewzoo.example.main --> viewzoo.example.enhanced
+    viewzoo.example.enhanced --> viewzoo.example.filtered
+    viewzoo.example.filtered --> viewzoo.example.base
+```
 
-Let's force random computed columns to zero for testing (without updating any other views):
+Now that the view hierarchy is defined, we can replace layers at any time, without affecting the other layers! 🤩
+
+Let's swap out the filtering layer for a different version:
+```sql
+create or replace view viewzoo.example.filtered as select * from viewzoo.example.base where (key not in (2))
+```
+
+> [!IMPORTANT]
+> When `viewzoo.example.filtered` is changed, this new definition immediately takes affect in the view hierarchy, without having to change the definition of any other related views.
+
+Now force random computed columns to zero for testing:
 ```sql
 create or replace view viewzoo.example.enhanced as select *, 0 as rand from viewzoo.example.filtered
 ```
 
-Let's swap out the filtering layer for a different version (without updating any other views):
-```sql
-create or replace view viewzoo.example.filtered as select * from viewzoo.example.base where key not in (2)
-```
-
-Let's swap out the base view with real data from Postgresql (without updating any other views):
+Now swap out the base view with real data from Postgresql:
 ```sql
 create or replace view viewzoo.example.base as select * from postgres.example.base_v2.1
 ```
 
 This ability to easily replace views within a hierarchy is especially helpful for:
+* Managing JOINs/UNIONs and replication state between traditional and Iceberg storage
+* Implementing right-to-be-forgotten masking layers on top of existing schemas
 * Swapping between static/test datasets and real databases
 * Simulating failures and testing systems with invalid data states
-* Implementing right-to-be-forgotten masking layers on top of existing schemas
-* Configuring computed column definitions at runtime (based on user settings)
-* Managing JOINs/UNIONs and replication state between traditional and Iceberg storage
 * Hiding schema versioning so that the application sees the right version
+* Configuring computed column definitions at runtime (based on user settings)
 
 ## Limitations
 
 > [!CAUTION]
-> There is no way to "lock" a view in order to change its definition. Queries will use the version of the view active when the query plan is created. Changing a view definition doesn't terminate or restart any queries running when the definition is changed.
+> Viewzoo does not support materialized views. Use Iceberg for view storage in this case.
 
 > [!CAUTION]
 > Trino detects and prevents recursive view definitions, since these would cause infinite loops.
+
+> [!CAUTION]
+> There is no way to "lock" a view in order to change its definition while blocking reads. Queries will use the version of the view active when the query plan is created. Changing a view definition doesn't terminate or restart any queries running when the definition is changed.
+
+> [!CAUTION]
+> Because there is no way to lock views, hierarchies should be designed so that each layer in the hierarchy is maintained by a single actor, or only modified through synchronized access. 
+
+> [!CAUTION]
+> The easiest way to break a view hierarchy is to accidentally change column types when replacing a layer. It may be helpful to explicitly use Iceberg-specific types in base layers, even if Iceberg is only optionally configured as a storage layer, just to avoid type conversion and coercion problems later.  
 
 ---
 <small>&copy; 2024-2025 Rob Dickinson (robfromboulder)</small>
