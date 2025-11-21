@@ -33,7 +33,9 @@ public class ViewZooLocalFileSystemClient implements ViewZooStorageClient {
     @Override
     public Map<SchemaTableName, ConnectorViewDefinition> getViews() {
         Map<SchemaTableName, ConnectorViewDefinition> views = new HashMap<>();
-        if (!dir.isDirectory() && !dir.mkdirs()) throw new TrinoException(CONFIGURATION_INVALID, "Unable to access directory: " + dir);
+        if (!dir.isDirectory()) throw new TrinoException(CONFIGURATION_INVALID, "Directory does not exist: " + dir);
+        if (!dir.canRead()) throw new TrinoException(CONFIGURATION_INVALID, "Directory is not readable: " + dir);
+        if (!dir.canWrite()) throw new TrinoException(CONFIGURATION_INVALID, "Directory is not writable: " + dir);
         for (File f : Stream.of(requireNonNull(dir.listFiles())).filter(f -> !f.isHidden() && f.getName().endsWith(".json")).toList()) {
             try {
                 ConnectorViewDefinition def = mapper.readValue(f, ConnectorViewDefinition.class);
@@ -50,21 +52,21 @@ public class ViewZooLocalFileSystemClient implements ViewZooStorageClient {
 
     @Override
     public void createView(String schema, String table, ConnectorViewDefinition definition) {
+        File f = new File(dir, schema + "." + table + ".json");
         try {
-            File f = new File(dir, schema + "." + table + ".json");
             Files.writeString(Paths.get(f.toURI()), mapper.writeValueAsString(definition));
         } catch (IOException e) {
-            throw new TrinoException(GENERIC_INTERNAL_ERROR, e.getMessage());
+            throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to write file: " + f);
         }
     }
 
     @Override
     public void dropView(String schema, String table) {
+        File f = new File(dir, schema + "." + table + ".json");
         try {
-            File f = new File(dir, schema + "." + table + ".json");
             Files.deleteIfExists(Paths.get(f.toURI()));
         } catch (IOException e) {
-            throw new TrinoException(GENERIC_INTERNAL_ERROR, e.getMessage());
+            throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to delete file: " + f);
         }
     }
 
