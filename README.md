@@ -59,7 +59,7 @@ cd $TRINO_HOME && bash bin/launcher run
 ```
 
 > [!CAUTION]
-> Trino will fail to start if `viewzoo.dir` does not exist, or if Trino doesn't have read and write access to this directory.
+> Trino will fail to start if `viewzoo.dir` does not exist, or if Trino doesn't have read and write permissions.
 
 ## Running With JDBC Storage
 
