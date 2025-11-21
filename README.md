@@ -68,7 +68,7 @@ This option is preferred for production environments, since it's easy to include
 
 Run a local Postgres server if necessary:
 ```bash
-docker run -d --name viewzoopg -e POSTGRES_PASSWORD=secretpassword -p 5432:5432 postgres
+docker run -d --name viewzoopg -e POSTGRES_PASSWORD=secretpassword -p 5432:5432 postgres:16
 ```
 
 Create a `$TRINO_HOME/etc/catalog/viewzoo.properties` configuration file like this:
