@@ -62,9 +62,11 @@ public class TestViewZooIntegration {
     @Test(groups = "integration", dataProvider = "catalogs")
     public void testVirtualViews(String catalog) throws Exception {
         System.out.println(" >>> Testing virtual views on " + catalog);
+        String viewName = catalog + ".example.hello";
+
+        // exercise virtual view functions for specified catalog
         try (Connection connection = DriverManager.getConnection(TRINO_JDBC_URL, TRINO_USER, null);
              Statement statement = connection.createStatement()) {
-            String viewName = catalog + ".example.hello";
 
             // create the view
             String create_view = "CREATE VIEW " + viewName + " AS SELECT * FROM (VALUES (1, 'a'), (2, 'b')) AS t (key, value)";
@@ -116,6 +118,21 @@ public class TestViewZooIntegration {
                 assertEquals(rs.getInt("key"), 4);
                 assertEquals(rs.getString("value"), "D");
                 assertFalse(rs.next(), "Expected no more rows after replace");
+            }
+        }
+
+        // restart Postgresql & Trino services
+        runCommand("docker", "compose", "restart");
+        waitForTrino();
+
+        // read view defined before restart and verify data
+        try (Connection connection = DriverManager.getConnection(TRINO_JDBC_URL, TRINO_USER, null);
+             Statement statement = connection.createStatement()) {
+            try (ResultSet rs = statement.executeQuery("SELECT * FROM " + viewName + " ORDER BY key")) {
+                assertTrue(rs.next(), "Expected one row after restart");
+                assertEquals(rs.getInt("key"), 4);
+                assertEquals(rs.getString("value"), "D");
+                assertFalse(rs.next(), "Expected no more rows after restart");
             }
         }
     }
