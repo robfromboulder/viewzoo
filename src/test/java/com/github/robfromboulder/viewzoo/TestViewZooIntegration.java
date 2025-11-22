@@ -61,22 +61,41 @@ public class TestViewZooIntegration {
 
     @Test(groups = "integration", dataProvider = "catalogs")
     public void testVirtualViews(String catalog) throws Exception {
+        System.out.println(" >>> Testing virtual views on " + catalog);
         try (Connection connection = DriverManager.getConnection(TRINO_JDBC_URL, TRINO_USER, null);
              Statement statement = connection.createStatement()) {
             String viewName = catalog + ".example.hello";
 
             // create the view
-            statement.execute("CREATE VIEW " + viewName + " AS SELECT * FROM (VALUES (1, 'a'), (2, 'b')) AS t (key, value)");
+            String create_view = "CREATE VIEW " + viewName + " AS SELECT * FROM (VALUES (1, 'a'), (2, 'b')) AS t (key, value)";
+            statement.execute(create_view);
 
             // query the view and verify data
-            try (ResultSet resultSet = statement.executeQuery("SELECT * FROM " + viewName + " ORDER BY key")) {
-                assertTrue(resultSet.next(), "Expected first row");
-                assertEquals(resultSet.getInt("key"), 1);
-                assertEquals(resultSet.getString("value"), "a");
-                assertTrue(resultSet.next(), "Expected second row");
-                assertEquals(resultSet.getInt("key"), 2);
-                assertEquals(resultSet.getString("value"), "b");
-                assertFalse(resultSet.next(), "Expected no more rows");
+            try (ResultSet rs = statement.executeQuery("SELECT * FROM " + viewName + " ORDER BY key")) {
+                assertTrue(rs.next(), "Expected first row");
+                assertEquals(rs.getInt("key"), 1);
+                assertEquals(rs.getString("value"), "a");
+                assertTrue(rs.next(), "Expected second row");
+                assertEquals(rs.getInt("key"), 2);
+                assertEquals(rs.getString("value"), "b");
+                assertFalse(rs.next(), "Expected no more rows");
+            }
+
+            // creating the view again should fail
+            try {
+                statement.execute(create_view);
+                throw new AssertionError("Expected CREATE VIEW to fail when view already exists");
+            } catch (SQLException e) {
+                assertTrue(e.getMessage().contains("already exists"), "Expected 'already exists' error but got: " + e.getMessage());
+            }
+
+            // replace the existing view and verify new data
+            statement.execute("CREATE OR REPLACE VIEW " + viewName + " AS SELECT * FROM (VALUES (3, 'c')) AS t (key, value)");
+            try (ResultSet rs = statement.executeQuery("SELECT * FROM " + viewName + " ORDER BY key")) {
+                assertTrue(rs.next(), "Expected one row after replace");
+                assertEquals(rs.getInt("key"), 3);
+                assertEquals(rs.getString("value"), "c");
+                assertFalse(rs.next(), "Expected no more rows after replace");
             }
 
             // drop the view
@@ -88,6 +107,15 @@ public class TestViewZooIntegration {
                 throw new AssertionError("Expected query to fail after DROP VIEW");
             } catch (SQLException e) {
                 assertTrue(e.getMessage().contains("does not exist"), "Expected 'does not exist' error but got: " + e.getMessage());
+            }
+
+            // re-add previously defined view and verify new data
+            statement.execute("CREATE OR REPLACE VIEW " + viewName + " AS SELECT * FROM (VALUES (4, 'D')) AS t (key, value)");
+            try (ResultSet rs = statement.executeQuery("SELECT * FROM " + viewName + " ORDER BY key")) {
+                assertTrue(rs.next(), "Expected one row after replace");
+                assertEquals(rs.getInt("key"), 4);
+                assertEquals(rs.getString("value"), "D");
+                assertFalse(rs.next(), "Expected no more rows after replace");
             }
         }
     }
