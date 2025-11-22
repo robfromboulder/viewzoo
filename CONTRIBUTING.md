@@ -53,12 +53,18 @@ trivy filesystem .
 
 ## Running Integration Tests
 
-```bash
-mvn test -Pintegration
-```
+These tests start Postgresql and Trino in local containers, exercise virtual views using both filesystem and JDBC storage, and then shut down all containers (removing all volumes created during the test).
 
-> [!CAUTION]
+> [!IMPORTANT]
 > Integration tests require `docker-compose` and network access to download Postgresql and Trino containers.
+
+> [!IMPORTANT]
+> Integration tests should exercise all features related to virtual views, and there should be no differences in functional behavior between filesystem and JDBC configurations.
 
 > [!TIP]
 > Integration tests use port 7720 (Postgresql) and port 7721 (Trino) to avoid conflict with local services.
+
+Run integration test profile:
+```bash
+mvn test -Pintegration
+```
