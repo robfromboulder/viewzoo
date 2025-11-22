@@ -62,7 +62,7 @@ These tests start Postgresql and Trino in local containers, exercise virtual vie
 > Integration tests should exercise all features related to virtual views, and there should be no differences in functional behavior between filesystem and JDBC configurations.
 
 > [!TIP]
-> Integration tests use port 7720 (Postgresql) and port 7721 (Trino) to avoid conflict with local services.
+> Integration tests use port 7721 (for Trino) to avoid conflict with local services.
 
 Run integration test profile:
 ```bash

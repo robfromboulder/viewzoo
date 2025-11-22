@@ -74,7 +74,7 @@ Integration tests use Docker Compose to run PostgreSQL and Trino with the viewzo
 
 - **Location**: `src/test/docker/` contains docker-compose.yml and Trino catalog configs
 - **Catalogs**: Tests run against both `testjdbc` (PostgreSQL storage) and `testfs` (filesystem storage)
-- **Ports**: Uses non-standard ports (7720 for PostgreSQL, 7721 for Trino) to avoid conflicts
+- **Ports**: Uses non-standard port 7721 for Trino to avoid conflicts; PostgreSQL is internal only
 - **Requirements**: Docker must be running; plugin must be built first with `mvn clean package`
 - **Environment**: Tests set `PROJECT_ROOT` env var to locate the built plugin
 
