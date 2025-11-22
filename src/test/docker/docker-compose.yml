@@ -18,8 +18,6 @@ services:
     volumes:
       - ${PROJECT_ROOT}/target/viewzoo-478:/usr/lib/trino/plugin/viewzoo
       - ./trino/catalog:/etc/trino/catalog
-    tmpfs:
-      - /tmp/viewzoo:uid=1000,gid=1000
     depends_on:
       postgres:
         condition: service_healthy
