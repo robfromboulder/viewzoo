@@ -202,9 +202,7 @@ create or replace view viewzoo.example.base as select cast(node_id as varchar) a
 
 > [!TIP]
 > The `viewzoo.example.base` layer could also be defined to be a JOIN or UNION across multiple data sources, including Iceberg.
-
-> [!TIP]
-> JOINs or UNIONs can actually be used **at any level** in a hierarchy to merge data from multiple data sources, or to provide data merging as a separately configured or licensed option.
+> JOINs and UNIONs can actually be used **at any level** in a hierarchy to merge data from multiple data sources, or to provide data merging as a separately configured or licensed option.
 
 ## Limitations
 
