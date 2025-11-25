@@ -102,6 +102,16 @@ Create a virtual view with static data:
 create view viewzoo.example.hello as select * from (values ('A', '1')) as t (key, value)
 ```
 
+Select rows from the view:
+```sql
+select * from viewzoo.example.hello
+```
+
+Show virtual view columns and types:
+```sql
+describe viewzoo.example.hello
+```
+
 Replace virtual view with different static data:
 ```sql
 create or replace view viewzoo.example.hello as select * from (values ('A', '1'), ('B', '4')) as t (key, value)
@@ -110,11 +120,6 @@ create or replace view viewzoo.example.hello as select * from (values ('A', '1')
 Replace virtual view with query to system catalog:
 ```sql
 create or replace view viewzoo.example.hello as select node_id as key, http_uri as value from system.runtime.nodes
-```
-
-Select rows from the view:
-```sql
-select * from viewzoo.example.hello
 ```
 
 Examine current view definition: 
