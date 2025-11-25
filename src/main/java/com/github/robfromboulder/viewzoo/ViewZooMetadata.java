@@ -5,6 +5,7 @@ package com.github.robfromboulder.viewzoo;
 import com.github.robfromboulder.viewzoo.storage.ViewZooStorageClient;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
+import com.google.inject.Inject;
 import io.trino.spi.TrinoException;
 import io.trino.spi.connector.ColumnHandle;
 import io.trino.spi.connector.ColumnMetadata;
@@ -19,7 +20,6 @@ import io.trino.spi.connector.SchemaTableName;
 import io.trino.spi.connector.SchemaTablePrefix;
 import io.trino.spi.connector.ViewNotFoundException;
 
-import com.google.inject.Inject;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -29,6 +29,12 @@ import static io.trino.spi.StandardErrorCode.ALREADY_EXISTS;
 import static io.trino.spi.StandardErrorCode.INVALID_ARGUMENTS;
 
 public class ViewZooMetadata implements ConnectorMetadata {
+
+    // define maximum length for schema and table names
+    // conservative limits ensure filesystem compatibility
+    // "schema.table.json" = 100 + 1 + 100 + 5 = 206 < 255
+    public static final int MAX_SCHEMA_NAME_LENGTH = 100;
+    public static final int MAX_TABLE_NAME_LENGTH = 100;
 
     @Inject
     public ViewZooMetadata(ViewZooStorageClient storageClient) {
@@ -47,6 +53,10 @@ public class ViewZooMetadata implements ConnectorMetadata {
             throw new TrinoException(INVALID_ARGUMENTS, "Invalid schema name: " + schema);
         } else if (table.contains(".")) {
             throw new TrinoException(INVALID_ARGUMENTS, "Invalid table name: " + table);
+        } else if (schema.length() > MAX_SCHEMA_NAME_LENGTH) {
+            throw new TrinoException(INVALID_ARGUMENTS, "Schema name exceeds maximum length of " + MAX_SCHEMA_NAME_LENGTH + ": " + schema);
+        } else if (table.length() > MAX_TABLE_NAME_LENGTH) {
+            throw new TrinoException(INVALID_ARGUMENTS, "Table name exceeds maximum length of " + MAX_TABLE_NAME_LENGTH + ": " + table);
         } else if (replace) {
             views.put(stn, definition);
         } else if (views.putIfAbsent(stn, definition) != null) {

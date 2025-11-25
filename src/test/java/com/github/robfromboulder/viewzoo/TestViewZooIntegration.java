@@ -60,8 +60,7 @@ public class TestViewZooIntegration {
     }
 
     @Test(groups = "integration", dataProvider = "catalogs")
-    public void testVirtualViews(String catalog) throws Exception {
-        System.out.println(" >>> Testing virtual views on " + catalog);
+    public void testVirtualViewLifecycle(String catalog) throws Exception {
         String viewName = catalog + ".example.hello";
 
         // exercise virtual view functions for specified catalog
@@ -133,6 +132,72 @@ public class TestViewZooIntegration {
                 assertEquals(rs.getInt("key"), 4);
                 assertEquals(rs.getString("value"), "D");
                 assertFalse(rs.next(), "Expected no more rows after restart");
+            }
+        }
+    }
+
+    @Test(groups = "integration", dataProvider = "catalogs")
+    public void testVirtualViewsWithLongNames(String catalog) throws Exception {
+        try (Connection connection = DriverManager.getConnection(TRINO_JDBC_URL, TRINO_USER, null);
+             Statement statement = connection.createStatement()) {
+
+            // test schema name too long (101 characters)
+            String longSchema = "a".repeat(101);
+            String viewWithLongSchema = catalog + "." + longSchema + ".test";
+            try {
+                statement.execute("CREATE VIEW " + viewWithLongSchema + " AS SELECT 1 as x");
+                throw new AssertionError("Expected CREATE VIEW to fail with long schema name");
+            } catch (SQLException e) {
+                assertTrue(e.getMessage().contains("exceeds maximum length"), "Expected 'exceeds maximum length' error but got: " + e.getMessage());
+            }
+
+            // test table name too long (101 characters)
+            String longTable = "b".repeat(101);
+            String viewWithLongTable = catalog + ".example." + longTable;
+            try {
+                statement.execute("CREATE VIEW " + viewWithLongTable + " AS SELECT 1 as x");
+                throw new AssertionError("Expected CREATE VIEW to fail with long table name");
+            } catch (SQLException e) {
+                assertTrue(e.getMessage().contains("exceeds maximum length"), "Expected 'exceeds maximum length' error but got: " + e.getMessage());
+            }
+
+            // test max allowed lengths (100 characters each)
+            String maxSchema = "s" + "x".repeat(99);
+            String maxTable = "t" + "y".repeat(99);
+            String viewAtMaxLength = catalog + "." + maxSchema + "." + maxTable;
+            statement.execute("CREATE VIEW " + viewAtMaxLength + " AS SELECT 1 as x");
+            try (ResultSet rs = statement.executeQuery("SELECT * FROM " + viewAtMaxLength)) {
+                assertTrue(rs.next(), "Expected one row");
+                assertEquals(rs.getInt("x"), 1);
+            } finally {
+                statement.execute("DROP VIEW " + viewAtMaxLength);
+            }
+        }
+    }
+
+    @Test(groups = "integration", dataProvider = "catalogs")
+    public void testVirtualViewsWithInvalidNames(String catalog) throws Exception {
+        try (Connection connection = DriverManager.getConnection(TRINO_JDBC_URL, TRINO_USER, null);
+             Statement statement = connection.createStatement()) {
+
+            // test schema name containing period
+            String schemaWithPeriod = "\"invalid.schema\"";
+            String viewWithInvalidSchema = catalog + "." + schemaWithPeriod + ".test";
+            try {
+                statement.execute("CREATE VIEW " + viewWithInvalidSchema + " AS SELECT 1 as x");
+                throw new AssertionError("Expected CREATE VIEW to fail with period in schema name");
+            } catch (SQLException e) {
+                assertTrue(e.getMessage().contains("Invalid schema name"), "Expected 'Invalid schema name' error but got: " + e.getMessage());
+            }
+
+            // test table name containing period
+            String tableWithPeriod = "\"invalid.table\"";
+            String viewWithInvalidTable = catalog + ".example." + tableWithPeriod;
+            try {
+                statement.execute("CREATE VIEW " + viewWithInvalidTable + " AS SELECT 1 as x");
+                throw new AssertionError("Expected CREATE VIEW to fail with period in table name");
+            } catch (SQLException e) {
+                assertTrue(e.getMessage().contains("Invalid table name"), "Expected 'Invalid table name' error but got: " + e.getMessage());
             }
         }
     }
