@@ -99,12 +99,17 @@ Connect your favorite SQL client (like [DBeaver](https://dbeaver.io/) or [Trino 
 
 Create a virtual view with static data:
 ```sql
-create view viewzoo.example.hello as select * from (values (1, 'a')) as t (key, value)
+create view viewzoo.example.hello as select * from (values ('A', '1')) as t (key, value)
 ```
 
-Replace a virtual view with different static data:
+Replace virtual view with different static data:
 ```sql
-create or replace view viewzoo.example.hello as select * from (values (1, 'a'), (2, 'b')) as t (key, value)
+create or replace view viewzoo.example.hello as select * from (values ('A', '1'), ('B', '4')) as t (key, value)
+```
+
+Replace virtual view with query to system catalog:
+```sql
+create or replace view viewzoo.example.hello as select node_id as key, http_uri as value from system.runtime.nodes
 ```
 
 Select rows from the view:
@@ -124,27 +129,46 @@ drop view viewzoo.example.hello
 
 ## Using Virtual View Hierarchies
 
+Virtual views can be defined on top of other virtual views (and so on) to create a hierarchy of related views. Once this hierarchy of views is defined,
+any layer in the hierarchy can be replaced with a new definition, without having to directly update all its dependencies. This is true as long as the
+view's list of columns (and their datatypes) do not change between old and new definitions.
+
+A virtual view hierarchy with swappable layers is especially helpful when:
+* Hiding source and number of physical data sources and details of their schemas
+* Managing JOINs/UNIONs and replication state between traditional and Iceberg storage
+* Implementing right-to-be-forgotten masking layers on top of existing schemas
+* Swapping between static/test datasets and real databases
+* Simulating failures and testing systems with invalid data states
+* Hiding schema versioning so that the application sees the right version
+* Configuring different computed column definitions at runtime (based on user settings)
+
 Let's create a base view first, using static data:
 ```sql
-create view viewzoo.example.base as select * from (values (1, 'a'), (2, 'b'), (3, 'c')) as t (key, value)
+create view viewzoo.example.base as select cast(key as varchar) as key, cast(value as varchar) as value from (values ('A', '2'), ('B', '4'), ('C', '8')) as t (key, value)
 ```
 
-Next create a dependent view to do filtering (letting all rows through at first):
+> [!TIP]
+> Using `cast` as shown above is not strictly required, but it's good practice for views that could be backed by different data sources.
+
+> [!TIP]
+> When defining a hierarchy, it's recommended to explicitly list columns by name and avoid using `*` to select all columns.
+
+Next create a dependent view to do filtering:
 ```sql
-create view viewzoo.example.filtered as select * from viewzoo.example.base where (true)
+create view viewzoo.example.filtered as select key, value from viewzoo.example.base where (key is not null)
 ```
 
 Next create a dependent view to add computed columns:
 ```sql
-create view viewzoo.example.enhanced as select *, random(100) as rand from viewzoo.example.filtered
+create view viewzoo.example.enhanced as select key, value, cast(random(100) as double) as computed1 from viewzoo.example.filtered
 ```
 
 Finish with a stable application-level view:
 ```sql
-create view viewzoo.example.main as select * from viewzoo.example.enhanced
+create view viewzoo.example.main as select key, value, computed1 from viewzoo.example.enhanced
 ```
 
-Finally the application has a stable top-level view that provides data:
+Finally the application has a stable top-level view to read data:
 ```sql
 select * from viewzoo.example.main
 ```
@@ -160,29 +184,27 @@ Now that the view hierarchy is defined, we can replace layers at any time, witho
 
 Let's swap out the filtering layer for a different version:
 ```sql
-create or replace view viewzoo.example.filtered as select * from viewzoo.example.base where (key not in (2))
+create or replace view viewzoo.example.filtered as select key, value from viewzoo.example.base where (key not in ('B'))
 ```
 
 > [!IMPORTANT]
 > When `viewzoo.example.filtered` is changed, this new definition immediately takes affect in the view hierarchy, without having to change the definition of any other related views.
 
-Now force random computed columns to zero for testing:
+Now force computed column to zero for testing:
 ```sql
-create or replace view viewzoo.example.enhanced as select *, 0 as rand from viewzoo.example.filtered
+create or replace view viewzoo.example.enhanced as select key, value, cast(0 as double) as computed1 from viewzoo.example.filtered
 ```
 
-Now swap out the base view with real data from Postgresql:
+Now swap out the base view with system catalog data:
 ```sql
-create or replace view viewzoo.example.base as select * from postgres.example.base_v2.1
+create or replace view viewzoo.example.base as select cast(node_id as varchar) as key, cast(http_uri as varchar) as value from system.runtime.nodes
 ```
 
-This ability to easily replace views within a hierarchy is especially helpful for:
-* Managing JOINs/UNIONs and replication state between traditional and Iceberg storage
-* Implementing right-to-be-forgotten masking layers on top of existing schemas
-* Swapping between static/test datasets and real databases
-* Simulating failures and testing systems with invalid data states
-* Hiding schema versioning so that the application sees the right version
-* Configuring computed column definitions at runtime (based on user settings)
+> [!TIP]
+> The `viewzoo.example.base` layer could also be defined to be a JOIN or UNION across multiple data sources, including Iceberg.
+
+> [!TIP]
+> JOINs or UNIONs can actually be used **at any level** in a hierarchy to merge data from multiple data sources, or to provide data merging as a separately configured or licensed option.
 
 ## Limitations
 
@@ -199,7 +221,7 @@ This ability to easily replace views within a hierarchy is especially helpful fo
 > Because there is no way to lock views, hierarchies should be designed so that each layer in the hierarchy is maintained by a single actor, or only modified through synchronized access. 
 
 > [!CAUTION]
-> The easiest way to break a view hierarchy is to accidentally change column types when replacing a layer. It may be helpful to explicitly use Iceberg-specific types in base layers, even if Iceberg is only optionally configured as a storage layer, just to avoid type conversion and coercion problems later.  
+> The easiest way to break a view hierarchy is to accidentally change column types when replacing a layer. It may be helpful to explicitly cast types (as shown in examples above) to avoid type conversion and coercion problems later. You can also use Iceberg-specific types in base layers, even if Iceberg is only optionally configured as a storage layer, to avoid the need to ever switch column types.  
 
 ---
 <small>&copy; 2024-2025 Rob Dickinson (robfromboulder)</small>
