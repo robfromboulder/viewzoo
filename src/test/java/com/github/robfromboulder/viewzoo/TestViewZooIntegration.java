@@ -60,10 +60,10 @@ public class TestViewZooIntegration {
     }
 
     @Test(groups = "integration", dataProvider = "catalogs")
-    public void testVirtualViewLifecycle(String catalog) throws Exception {
+    public void testViewLifecycle(String catalog) throws Exception {
         String viewName = catalog + ".example.hello";
 
-        // exercise virtual view functions for specified catalog
+        // exercise view functions for specified catalog
         try (Connection connection = DriverManager.getConnection(TRINO_JDBC_URL, TRINO_USER, null);
              Statement statement = connection.createStatement()) {
 
@@ -137,7 +137,7 @@ public class TestViewZooIntegration {
     }
 
     @Test(groups = "integration", dataProvider = "catalogs")
-    public void testVirtualViewsWithLongNames(String catalog) throws Exception {
+    public void testViewsWithLongNames(String catalog) throws Exception {
         try (Connection connection = DriverManager.getConnection(TRINO_JDBC_URL, TRINO_USER, null);
              Statement statement = connection.createStatement()) {
 
@@ -176,7 +176,7 @@ public class TestViewZooIntegration {
     }
 
     @Test(groups = "integration", dataProvider = "catalogs")
-    public void testVirtualViewsWithInvalidNames(String catalog) throws Exception {
+    public void testViewsWithInvalidNames(String catalog) throws Exception {
         try (Connection connection = DriverManager.getConnection(TRINO_JDBC_URL, TRINO_USER, null);
              Statement statement = connection.createStatement()) {
 

@@ -1,8 +1,5 @@
 # viewzoo
-This Trino connector stores **virtual views**, which allow improvising, extending, and re-platforming data sources while seamlessly preserving compatibility
-with all applications. Virtual views are especially useful for prototyping, when updating existing applications to use Apache Iceberg, and for creating layered
-hierarchies of views that can be swapped out at runtime. This connector stores virtual views to the Trino server's local filesystem, or to a local or remote
-Postgresql database, without requiring any other infrastructure.
+This Trino connector lets you completely decouple applications from physical data sources, using lightweight SQL views that belong to applications, not databases.
 
 [![Claude Code](https://img.shields.io/badge/Built%20with%20Claude%20Code-6366f1?logo=claude&logoColor=white)](https://claude.ai/code)
 [![CodeFactor](https://www.codefactor.io/repository/github/robfromboulder/viewzoo/badge)](https://www.codefactor.io/repository/github/robfromboulder/viewzoo)
@@ -38,10 +35,10 @@ mvn clean package && rm -rf $TRINO_HOME/plugin/viewzoo && cp -r ./target/viewzoo
 
 ## Running With Filesystem Storage
 
-Virtual views can be stored directly on the Trino server's filesystem (as JSON files), without requiring any other infrastructure.
+Views can be stored directly on the Trino server's filesystem (as JSON files), without requiring any other infrastructure.
 This option is intended for development and prototyping, and for very lightweight deployments.
 
-Create a local directory to store virtual views:
+Create a local directory to store views:
 ```bash
 rm -rf /tmp/viewzoo && mkdir -p /tmp/viewzoo
 ```
@@ -63,8 +60,8 @@ cd $TRINO_HOME && bash bin/launcher run
 
 ## Running With JDBC Storage
 
-Virtual views can alternatively be stored as rows in a local or remote Postgres database.
-This option is preferred for production environments, since it's easy to include virtual views in regular database backups. 
+Views can alternatively be stored as rows in a local or remote Postgres database.
+This option is preferred for production environments, since it's easy to include views in regular database backups. 
 
 Run a local Postgres server if necessary:
 ```bash
@@ -93,11 +90,11 @@ When finished testing, remove local Postgres server:
 docker stop viewzoopg; docker rm viewzoopg
 ```
 
-## Using Virtual Views
+## Using Views
 
 Connect your favorite SQL client (like [DBeaver](https://dbeaver.io/) or [Trino CLI](https://trino.io/docs/current/client/cli.html)) to your Trino server.
 
-Create a virtual view with static data:
+Create a view with static data:
 ```sql
 create view viewzoo.example.hello as select * from (values ('A', '1')) as t (key, value)
 ```
@@ -107,17 +104,17 @@ Select rows from the view:
 select * from viewzoo.example.hello
 ```
 
-Show virtual view columns and types:
+Show view columns and types:
 ```sql
 describe viewzoo.example.hello
 ```
 
-Replace virtual view with different static data:
+Replace view with different static data:
 ```sql
 create or replace view viewzoo.example.hello as select * from (values ('A', '1'), ('B', '4')) as t (key, value)
 ```
 
-Replace virtual view with query to system catalog:
+Replace view with query to system catalog:
 ```sql
 create or replace view viewzoo.example.hello as select node_id as key, http_uri as value from system.runtime.nodes
 ```
@@ -132,13 +129,13 @@ Delete the view:
 drop view viewzoo.example.hello
 ```
 
-## Using Virtual View Hierarchies
+## Using View Hierarchies
 
-Virtual views can be defined on top of other virtual views (and so on) to create a hierarchy of related views. Once this hierarchy of views is defined,
+Views can be defined on top of other views (and so on) to create a hierarchy of related views. Once this hierarchy of views is defined,
 any layer in the hierarchy can be replaced with a new definition, without having to directly update all its dependencies. This is true as long as the
 view's list of columns (and their datatypes) do not change between old and new definitions.
 
-A virtual view hierarchy with swappable layers is especially helpful when:
+A view hierarchy with swappable layers is especially helpful when:
 * Hiding source and number of physical data sources and details of their schemas
 * Managing JOINs/UNIONs and replication state between traditional and Iceberg storage
 * Implementing right-to-be-forgotten masking layers on top of existing schemas
