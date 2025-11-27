@@ -153,7 +153,7 @@ create view viewzoo.example.base as select cast(key as varchar) as key, cast(val
 > Using `cast` as shown above is not strictly required, but it's good practice for views that could be backed by different data sources.
 
 > [!TIP]
-> When defining a hierarchy, it's recommended to explicitly list columns by name and avoid using `*` to select all columns.
+> When defining a hierarchy, it's recommended to explicitly list columns by name and avoid using `*`.
 
 Next create a dependent view to do filtering:
 ```sql
