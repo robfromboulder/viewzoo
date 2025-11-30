@@ -8,7 +8,7 @@
     <artifactId>viewzoo</artifactId>
     <version>478</version>
     <name>viewzoo</name>
-    <description>Lightweight view storage for Trino</description>
+    <description>Lightweight storage for Trino views</description>
     <url>https://github.com/robfromboulder/viewzoo</url>
 
     <packaging>trino-plugin</packaging>
