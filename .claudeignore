@@ -1,0 +1,40 @@
+# Build outputs
+target/
+*.class
+*.jar
+*.war
+
+# Maven
+.mvn/
+mvn.cmd
+mvnw
+mvnw.cmd
+
+# IDE files
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Git
+.git/
+
+# Docker volumes and runtime
+.docker/
+docker-compose.override.yml
+
+# Dependency caches
+dependency-reduced-pom.xml
+
+# Test outputs
+*.tmp
+test-output/
