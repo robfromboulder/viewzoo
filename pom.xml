@@ -11,7 +11,12 @@
     <description>Lightweight storage for Trino views</description>
     <url>https://github.com/robfromboulder/viewzoo</url>
 
-    <packaging>trino-plugin</packaging>
+    <properties>
+        <air.main.basedir>${project.basedir}</air.main.basedir>
+        <maven.compiler.source>24</maven.compiler.source>
+        <maven.compiler.target>24</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
 
     <build>
         <plugins>
@@ -21,7 +26,6 @@
                 <version>11</version>
                 <extensions>true</extensions>
             </plugin>
-
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-source-plugin</artifactId>
@@ -201,6 +205,8 @@
         </license>
     </licenses>
 
+    <packaging>trino-plugin</packaging>
+
     <profiles>
         <profile>
             <id>integration</id>
@@ -218,13 +224,6 @@
             </build>
         </profile>
     </profiles>
-
-    <properties>
-        <air.main.basedir>${project.basedir}</air.main.basedir>
-        <maven.compiler.source>24</maven.compiler.source>
-        <maven.compiler.target>24</maven.compiler.target>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    </properties>
 
     <scm>
         <connection>scm:git:git@github.com:robfromboulder/viewzoo.git</connection>
