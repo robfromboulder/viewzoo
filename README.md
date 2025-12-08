@@ -216,7 +216,7 @@ create or replace view viewzoo.example.base as select cast(node_id as varchar) a
 > JOINs and UNIONs can actually be used **at any level** in a hierarchy to merge data from multiple data sources, or to provide data merging as a separately configured or licensed option.
 
 > [!TIP]
-> When working with complex view hierarchies, tracking view-to-view dependencies can become challenging. Traditional ERD tools don't visualize these relationships because views don't use foreign keys. **[ViewMapper](https://github.com/robfromboulder/viewmapper)** solves this by using Claude AI and the Trino SQL parser to automatically extract dependencies and generate visual Mermaid diagrams showing how your views connect, even with complex JOINs, UNIONs, and WITH clauses.
+> When working with complex view hierarchies, tracking view-to-view dependencies can become challenging. Traditional ERD tools don't visualize these relationships because views don't use foreign keys. **[ViewMapper](https://github.com/robfromboulder/viewmapper)** solves this by using Claude AI and the Trino SQL parser to extract dependencies and generate visual Mermaid diagrams showing how your views connect, even with complex JOINs, UNIONs, and WITH clauses.
 
 ## Limitations
 
