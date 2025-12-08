@@ -58,10 +58,19 @@ cd $TRINO_HOME && bash bin/launcher run
 > [!CAUTION]
 > Trino will fail to start if `viewzoo.dir` does not exist, or if Trino doesn't have read and write permissions.
 
+> [!CAUTION]
+> If running Trino in a Docker container, ensure `viewzoo.dir` is mapped to a persistent volume or host directory. Without this, view definitions will be lost when the container is upgraded or recreated. To verify your volume mount is configured correctly, run:
+> ```bash
+> docker inspect <container_name> --format='{{json .Mounts}}' | jq '.[] | select(.Destination == "/path/to/viewzoo.dir")'
+> ```
+> Replace `/path/to/viewzoo.dir` with your actual `viewzoo.dir` path. If this returns mount information showing a `Source` outside the container, your views are safely persisted. If it returns nothing or shows no external `Source`, your views will be lost on container upgrade.
+
+> [!TIP]
+> Filesystem storage enables a unique collaboration pattern: teams can share view definitions through git without requiring a traditional database or network file share. By storing views as JSON files in a version-controlled directory, view definitions become part of your application's source code, with full revision history, pull request reviews, and branch-based development. This approach is particularly valuable for development environments, CI/CD pipelines, and scenarios where you need view definitions to be as portable and reviewable as your application code itself.
+
 ## Running With JDBC Storage
 
-Views can alternatively be stored as rows in a local or remote Postgres database.
-This option is preferred for production environments, since it's easy to include views in regular database backups. 
+Views can alternatively be stored as rows in a local or remote Postgres database. This option is preferred for multi-container and Kubernetes deployments, and production environments in general. JDBC storage makes it easy to include views in regular database backups and avoids the sharing, permission, and upgrade issues that can occur with filesystem storage in containerized production environments. 
 
 Run a local Postgres server if necessary:
 ```bash
