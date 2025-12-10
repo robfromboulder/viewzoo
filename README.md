@@ -1,15 +1,12 @@
 # viewzoo
-This Trino connector lets you completely decouple applications from physical data sources, using lightweight SQL views that belong to applications, not databases.
+This Trino connector stores views to the local filesystem or a Postgresql database, without requiring Hive metastore or object storage services. 
+
+Many thanks to **Roey Ogen** and **[@MirerRon](https://github.com/MirerRon)** for your feedback and contributions!
 
 [![Claude Code](https://img.shields.io/badge/Built%20with%20Claude%20Code-6366f1?logo=claude&logoColor=white)](https://claude.ai/code)
 [![CodeFactor](https://www.codefactor.io/repository/github/robfromboulder/viewzoo/badge)](https://www.codefactor.io/repository/github/robfromboulder/viewzoo)
 [![Contributing](https://img.shields.io/badge/contributions-welcome-green.svg)](https://github.com/robfromboulder/viewzoo/blob/v478/CONTRIBUTING.md)
 [![License](https://img.shields.io/github/license/robfromboulder/viewzoo)](https://github.com/robfromboulder/viewzoo/blob/v478/LICENSE)
-
-Presentation at Trino Summit 2024:<br/>
-[![Link to Trino Summit 2024 Presentation](https://img.youtube.com/vi/z8eh_3vBpvg/0.jpg)](https://www.youtube.com/watch?v=z8eh_3vBpvg)
-
-Many thanks to **Roey Ogen** and **[@MirerRon](https://github.com/MirerRon)** for your feedback and contributions!
 
 ## Dependencies
 
@@ -101,6 +98,8 @@ docker stop viewzoopg; docker rm viewzoopg
 
 ## Using Views
 
+Views managed by this connector behave just like regular Trino views, but we'll walk through some simple examples anyway.
+
 Connect your favorite SQL client (like [DBeaver](https://dbeaver.io/) or [Trino CLI](https://trino.io/docs/current/client/cli.html)) to your Trino server.
 
 Create a view with static data:
@@ -138,102 +137,16 @@ Delete the view:
 drop view viewzoo.example.hello
 ```
 
-## Using View Hierarchies
-
-Views can be defined on top of other views (and so on) to create a hierarchy of related views. Once this hierarchy of views is defined,
-any layer in the hierarchy can be replaced with a new definition, without having to directly update all its dependencies. This is true as long as the
-view's list of columns (and their datatypes) do not change between old and new definitions.
-
-A view hierarchy with swappable layers is especially helpful when:
-* Hiding source and number of physical data sources and details of their schemas
-* Managing JOINs/UNIONs and replication state between traditional and Iceberg storage
-* Implementing right-to-be-forgotten masking layers on top of existing schemas
-* Swapping between static/test datasets and real databases
-* Simulating failures and testing systems with invalid data states
-* Hiding schema versioning so that the application sees the right version
-* Configuring different computed column definitions at runtime (based on user settings)
-
-Let's create a base view first, using static data:
-```sql
-create view viewzoo.example.base as select cast(key as varchar) as key, cast(value as varchar) as value from (values ('A', '2'), ('B', '4'), ('C', '8')) as t (key, value)
-```
-
-> [!TIP]
-> Using `cast` as shown above is not strictly required, but it's good practice for columns in views that could be backed by different data sources.
-
-> [!TIP]
-> When defining a hierarchy, avoid using `*` to select all columns and instead explicitly list columns by name.
-
-Next create a dependent view to do filtering:
-```sql
-create view viewzoo.example.filtered as select key, value from viewzoo.example.base where (key is not null)
-```
-
-Next create a dependent view to add computed columns:
-```sql
-create view viewzoo.example.enhanced as select key, value, cast(random(100) as double) as computed1 from viewzoo.example.filtered
-```
-
-Finish with a stable application-level view:
-```sql
-create view viewzoo.example.main as select key, value, computed1 from viewzoo.example.enhanced
-```
-
-Finally the application has a stable top-level view to read data:
-```sql
-select * from viewzoo.example.main
-```
-
-```mermaid
-flowchart TD
-    viewzoo.example.main --> viewzoo.example.enhanced
-    viewzoo.example.enhanced --> viewzoo.example.filtered
-    viewzoo.example.filtered --> viewzoo.example.base
-```
-
-Now that the view hierarchy is defined, we can replace layers at any time, without affecting the other layers! 🤩
-
-Let's swap out the filtering layer for a different version:
-```sql
-create or replace view viewzoo.example.filtered as select key, value from viewzoo.example.base where (key not in ('B'))
-```
-
-> [!IMPORTANT]
-> When `viewzoo.example.filtered` is changed, this new definition immediately takes affect in the view hierarchy, without having to change the definition of any other related views.
-
-Now force computed column to zero for testing:
-```sql
-create or replace view viewzoo.example.enhanced as select key, value, cast(0 as double) as computed1 from viewzoo.example.filtered
-```
-
-Now swap out the base view with system catalog data:
-```sql
-create or replace view viewzoo.example.base as select cast(node_id as varchar) as key, cast(http_uri as varchar) as value from system.runtime.nodes
-```
-
-> [!TIP]
-> The `viewzoo.example.base` layer could also be defined to be a JOIN or UNION across multiple data sources, including Iceberg.
-> JOINs and UNIONs can actually be used **at any level** in a hierarchy to merge data from multiple data sources, or to provide data merging as a separately configured or licensed option.
-
-> [!TIP]
-> When working with complex view hierarchies, tracking view-to-view dependencies can become challenging. Traditional ERD tools don't visualize these relationships because views don't use foreign keys. **[ViewMapper](https://github.com/robfromboulder/viewmapper)** solves this by using Claude AI and the Trino SQL parser to extract dependencies and generate visual Mermaid diagrams showing how your views connect, even with complex JOINs, UNIONs, and WITH clauses.
-
 ## Limitations
+
+> [!CAUTION]
+> This connector does not support defining or using tables, only views.
 
 > [!CAUTION]
 > Materialized views are not supported. Use Iceberg for view storage in this case.
 
 > [!CAUTION]
-> Trino detects and prevents recursive view definitions, since these would cause infinite loops.
-
-> [!CAUTION]
-> There is no way to "lock" a view in order to change its definition while blocking reads. Queries will use the version of the view active when the query plan is created. Changing a view definition doesn't terminate or restart any queries running when the definition is changed.
-
-> [!CAUTION]
-> Because there is no way to lock views, hierarchies should be designed so that each layer in the hierarchy is maintained by a single actor, or only modified through synchronized access. 
-
-> [!CAUTION]
-> The easiest way to break a view hierarchy is to accidentally change column types when replacing a layer. It may be helpful to explicitly cast types (as shown in examples above) to avoid type conversion and coercion problems later. You can also use Iceberg-specific types in base layers, even if Iceberg is only optionally configured as a storage layer, to avoid the need to ever switch column types.  
+> While this connector probably works with multiple versions of Trino, it has only been tested with Trino 478.
 
 ---
 <small>&copy; 2024-2025 Rob Dickinson (robfromboulder)</small>

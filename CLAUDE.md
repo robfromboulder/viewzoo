@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-viewzoo is a Trino connector that stores lightweight application-centric views using either filesystem storage (JSON files) or a PostgreSQL database, without requiring a Hive-compatible metastore or object storage. These views allow applications to be separated from physical schemas that provide data.
+ViewZoo is a Trino connector that stores views using either filesystem storage (JSON files) or a PostgreSQL database, without requiring a Hive-compatible metastore or object storage.
 
 ## Branching and Versioning
 
