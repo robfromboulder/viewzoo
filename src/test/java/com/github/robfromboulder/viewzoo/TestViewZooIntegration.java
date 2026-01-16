@@ -40,7 +40,7 @@ public class TestViewZooIntegration {
         assertTrue(dockerComposeFile.exists(), "docker-compose.yml not found in src/test/docker");
 
         // verify the plugin has been built
-        File pluginDir = new File(projectDir, "target/viewzoo-478");
+        File pluginDir = new File(projectDir, "target/viewzoo-479");
         assertTrue(pluginDir.exists(), "Plugin not built. Please run 'mvn clean package' first.");
 
         // start Postgresql & Trino services on private ports

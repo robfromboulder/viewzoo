@@ -5,26 +5,26 @@ Many thanks to **Roey Ogen** and **[@MirerRon](https://github.com/MirerRon)** fo
 
 [![Claude Code](https://img.shields.io/badge/Built%20with%20Claude%20Code-6366f1?logo=claude&logoColor=white)](https://claude.ai/code)
 [![CodeFactor](https://www.codefactor.io/repository/github/robfromboulder/viewzoo/badge)](https://www.codefactor.io/repository/github/robfromboulder/viewzoo)
-[![Contributing](https://img.shields.io/badge/contributions-welcome-green.svg)](https://github.com/robfromboulder/viewzoo/blob/v478/CONTRIBUTING.md)
-[![License](https://img.shields.io/github/license/robfromboulder/viewzoo)](https://github.com/robfromboulder/viewzoo/blob/v478/LICENSE)
+[![Contributing](https://img.shields.io/badge/contributions-welcome-green.svg)](https://github.com/robfromboulder/viewzoo/blob/v479/CONTRIBUTING.md)
+[![License](https://img.shields.io/github/license/robfromboulder/viewzoo)](https://github.com/robfromboulder/viewzoo/blob/v479/LICENSE)
 
 ## Dependencies
 
-* Trino 478
-* Java 24
+* Trino 479
+* Java 25
 * Maven 3.9.8 or higher
 * Postgresql 10 or higher (optional)
 
 ## Installation
 
-Download Trino 478, and export `TRINO_HOME` as a shell variable:
+Download Trino 479, and export `TRINO_HOME` as a shell variable:
 ```bash
-export TRINO_HOME=$HOME/Downloads/trino-478
+export TRINO_HOME=$HOME/Downloads/trino-479
 ```
 
 Build and install connector:
 ```bash
-mvn clean package && rm -rf $TRINO_HOME/plugin/viewzoo && cp -r ./target/viewzoo-478 $TRINO_HOME/plugin/viewzoo
+mvn clean package && rm -rf $TRINO_HOME/plugin/viewzoo && cp -r ./target/viewzoo-479 $TRINO_HOME/plugin/viewzoo
 ```
 
 > [!WARNING]
@@ -146,7 +146,7 @@ drop view viewzoo.example.hello
 > Materialized views are not supported. Use Iceberg for view storage in this case.
 
 > [!CAUTION]
-> While this connector probably works with multiple versions of Trino, it has only been tested with Trino 478.
+> While this connector probably works with multiple versions of Trino, it has only been tested with Trino 479.
 
 ---
 <small>&copy; 2024-2025 Rob Dickinson (robfromboulder)</small>

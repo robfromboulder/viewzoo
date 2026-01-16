@@ -10,11 +10,11 @@ services:
       retries: 5
 
   trino:
-    image: trinodb/trino:478
+    image: trinodb/trino:479
     ports:
       - "7721:8080"
     volumes:
-      - ${PROJECT_ROOT}/target/viewzoo-478:/usr/lib/trino/plugin/viewzoo
+      - ${PROJECT_ROOT}/target/viewzoo-479:/usr/lib/trino/plugin/viewzoo
       - ./trino/catalog:/etc/trino/catalog
     depends_on:
       postgres:

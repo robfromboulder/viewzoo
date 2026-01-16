@@ -29,7 +29,7 @@ mvn test
 mvn test -Dtest=TestViewZooBaseConfig
 
 # Install to Trino
-mvn clean package && rm -rf $TRINO_HOME/plugin/viewzoo && cp -r ./target/viewzoo-478 $TRINO_HOME/plugin/viewzoo
+mvn clean package && rm -rf $TRINO_HOME/plugin/viewzoo && cp -r ./target/viewzoo-479 $TRINO_HOME/plugin/viewzoo
 
 # Check dependency updates
 mvn versions:display-dependency-updates

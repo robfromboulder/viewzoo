@@ -6,15 +6,15 @@
 
     <groupId>com.github.robfromboulder</groupId>
     <artifactId>viewzoo</artifactId>
-    <version>478</version>
+    <version>479</version>
     <name>viewzoo</name>
     <description>Lightweight storage for Trino views</description>
     <url>https://github.com/robfromboulder/viewzoo</url>
 
     <properties>
         <air.main.basedir>${project.basedir}</air.main.basedir>
-        <maven.compiler.source>24</maven.compiler.source>
-        <maven.compiler.target>24</maven.compiler.target>
+        <maven.compiler.source>25</maven.compiler.source>
+        <maven.compiler.target>25</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
@@ -81,27 +81,27 @@
         <dependency>
             <groupId>io.airlift</groupId>
             <artifactId>bootstrap</artifactId>
-            <version>369</version>
+            <version>394</version>
         </dependency>
         <dependency>
             <groupId>io.airlift</groupId>
             <artifactId>configuration</artifactId>
-            <version>369</version>
+            <version>394</version>
         </dependency>
         <dependency>
             <groupId>io.airlift</groupId>
             <artifactId>configuration-testing</artifactId>
-            <version>369</version>
+            <version>394</version>
         </dependency>
         <dependency>
             <groupId>io.airlift</groupId>
             <artifactId>json</artifactId>
-            <version>369</version>
+            <version>394</version>
         </dependency>
         <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
-            <version>42.7.8</version>
+            <version>42.7.9</version>
         </dependency>
         <dependency>
             <groupId>com.google.inject</groupId>
@@ -119,7 +119,7 @@
         <dependency>
             <groupId>io.trino</groupId>
             <artifactId>trino-spi</artifactId>
-            <version>478</version>
+            <version>479</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
@@ -137,13 +137,13 @@
         <dependency>
             <groupId>io.opentelemetry</groupId>
             <artifactId>opentelemetry-api</artifactId>
-            <version>1.55.0</version>
+            <version>1.57.0</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>io.opentelemetry</groupId>
             <artifactId>opentelemetry-context</artifactId>
-            <version>1.55.0</version>
+            <version>1.57.0</version>
             <scope>provided</scope>
         </dependency>
 
@@ -151,13 +151,13 @@
         <dependency>
             <groupId>io.trino</groupId>
             <artifactId>trino-jdbc</artifactId>
-            <version>478</version>
+            <version>479</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>io.trino</groupId>
             <artifactId>trino-main</artifactId>
-            <version>478</version>
+            <version>479</version>
             <scope>test</scope>
             <exclusions>
                 <exclusion>
@@ -169,7 +169,7 @@
         <dependency>
             <groupId>io.trino</groupId>
             <artifactId>trino-testing</artifactId>
-            <version>478</version>
+            <version>479</version>
             <scope>test</scope>
             <exclusions>
                 <exclusion>
