@@ -89,5 +89,5 @@ Integration tests use Docker Compose to run PostgreSQL and Trino with the viewzo
 ## Code Style
 
 - IntelliJ IDEA defaults with 130-character line length
-- Copyright header: "© 2024-2025 Rob Dickinson (robfromboulder)"
+- Copyright header: "© 2024-2026 Rob Dickinson (robfromboulder)"
 - Use `TrinoException` with appropriate error codes for errors

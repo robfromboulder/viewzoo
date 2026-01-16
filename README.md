@@ -149,4 +149,4 @@ drop view viewzoo.example.hello
 > While this connector probably works with multiple versions of Trino, it has only been tested with Trino 479.
 
 ---
-<small>&copy; 2024-2025 Rob Dickinson (robfromboulder)</small>
+<small>&copy; 2024-2026 Rob Dickinson (robfromboulder)</small>
