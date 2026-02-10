@@ -8,6 +8,9 @@ Many thanks to **Roey Ogen** and **[@MirerRon](https://github.com/MirerRon)** fo
 [![Contributing](https://img.shields.io/badge/contributions-welcome-green.svg)](https://github.com/robfromboulder/viewzoo/blob/v479/CONTRIBUTING.md)
 [![License](https://img.shields.io/github/license/robfromboulder/viewzoo)](https://github.com/robfromboulder/viewzoo/blob/v479/LICENSE)
 
+> [!NOTE]
+> This project is not officially endorsed or supported by Starburst.
+
 ## Dependencies
 
 * Trino 479
