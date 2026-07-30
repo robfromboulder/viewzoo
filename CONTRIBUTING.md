@@ -1,14 +1,5 @@
 # Contributing to viewzoo
 
-## Using Claude Code
-
-This project uses (but does not require) [Claude Code](https://claude.ai/code) for help with development, testing, and maintenance. The `CLAUDE.md` file provides project context for Claude Code sessions.
-
-If you haven't used Claude Code yet, these resources are super helpful:
-* https://code.claude.com/docs
-* https://www.anthropic.com/engineering/claude-code-best-practices
-* https://www.siddharthbharath.com/claude-code-the-complete-guide/
-
 ## Branching and Versioning
 
 Trino uses only major version numbers for its releases, and breaking changes can be introduced with any new version. To support this, viewzoo uses a separate branch for each Trino version:
