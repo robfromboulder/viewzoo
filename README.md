@@ -1,7 +1,5 @@
-# viewzoo
+# ViewZoo
 This Trino connector stores views to the local filesystem or a Postgresql database, without requiring Hive metastore or object storage services. 
-
-Many thanks to **Roey Ogen** and **[@MirerRon](https://github.com/MirerRon)** for your feedback and contributions!
 
 [![Claude Code](https://img.shields.io/badge/Built%20with%20Claude%20Code-6366f1?logo=claude&logoColor=white)](https://claude.ai/code)
 [![CodeFactor](https://www.codefactor.io/repository/github/robfromboulder/viewzoo/badge)](https://www.codefactor.io/repository/github/robfromboulder/viewzoo)
