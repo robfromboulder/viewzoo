@@ -1,10 +1,20 @@
-# ViewZoo
-This Trino connector stores views to the local filesystem or a Postgresql database, without requiring Hive metastore or object storage services. 
+<a href="#"><img src=".github/images/hero.svg" width="100%" alt="ViewZoo, a robfromboulder project: define cross-catalog Trino views without needing a metastore. A zoo site plan with a filesystem enclosure of penguins and a Postgres enclosure of elephants; yellow arrows from apps and agents through the gate in the zoo’s brick front wall, labeled Trino connector, read and write view definitions to a penguin and the rightmost elephant."></a>
 
 [![Claude Code](https://img.shields.io/badge/Built%20with%20Claude%20Code-6366f1?logo=claude&logoColor=white)](https://claude.ai/code)
 [![CodeFactor](https://www.codefactor.io/repository/github/robfromboulder/viewzoo/badge)](https://www.codefactor.io/repository/github/robfromboulder/viewzoo)
 [![Contributing](https://img.shields.io/badge/contributions-welcome-green.svg)](https://github.com/robfromboulder/viewzoo/blob/v479/CONTRIBUTING.md)
 [![License](https://img.shields.io/github/license/robfromboulder/viewzoo)](https://github.com/robfromboulder/viewzoo/blob/v479/LICENSE)
+
+This Trino connector stores views to the local filesystem or a Postgresql database, without requiring Hive metastore or object storage services.
+
+Contents:
+
+* [Dependencies](#dependencies)
+* [Installation](#installation)
+* [Running With Filesystem Storage](#running-with-filesystem-storage)
+* [Running With JDBC Storage](#running-with-jdbc-storage)
+* [Using Views](#using-views)
+* [Limitations](#limitations)
 
 > [!NOTE]
 > This project is not officially endorsed or supported by Starburst.

@@ -1,0 +1,128 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 520" width="1200" height="520" role="img" aria-label="ViewZoo, a robfromboulder project: define cross-catalog Trino views without needing a metastore. A zoo site plan with a filesystem enclosure of penguins and a Postgres enclosure of elephants; yellow arrows from apps and agents through the gate in the zoo’s brick front wall, labeled Trino connector, read and write view definitions to a penguin and the rightmost elephant.">
+  <defs>
+    <pattern id="bp-grid" width="20" height="20" patternUnits="userSpaceOnUse">
+      <path d="M20 0H0V20" fill="none" stroke="#f3f7fc" stroke-opacity=".045" stroke-width="1"/>
+    </pattern>
+    <pattern id="bp-grid-major" width="100" height="100" patternUnits="userSpaceOnUse">
+      <rect width="100" height="100" fill="url(#bp-grid)"/>
+      <path d="M100 0H0V100" fill="none" stroke="#f3f7fc" stroke-opacity=".10" stroke-width="1"/>
+    </pattern>
+    <filter id="wob" x="-5%" y="-5%" width="110%" height="110%">
+      <feTurbulence type="fractalNoise" baseFrequency=".018" numOctaves="2" seed="7" result="n"/>
+      <feDisplacementMap in="SourceGraphic" in2="n" scale="3.2"/>
+    </filter>
+    <filter id="smudge"><feGaussianBlur stdDeviation="14"/></filter>
+    <filter id="paper" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="3"/>
+      <feColorMatrix values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .05 0"/>
+    </filter>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+      <path d="M0 1.5 L10 5 L0 8.5" fill="none" stroke="#f3f7fc" stroke-width="1.4"/>
+    </marker>
+    <marker id="arr-y" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse">
+      <path d="M0 1 L10 5 L0 9" fill="none" stroke="#ffd447" stroke-width="1.6"/>
+    </marker>
+    <marker id="tick" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="10" markerHeight="10" orient="auto">
+      <path d="M2 9 L8 1" stroke="#f3f7fc" stroke-width="1.4"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="520" rx="10" fill="#245f9f"/>
+  <rect width="1200" height="520" rx="10" fill="url(#bp-grid-major)"/>
+  <ellipse cx="860" cy="170" rx="240" ry="100" fill="#fff" opacity=".05" filter="url(#smudge)"/>
+  <rect x="16" y="16" width="1168" height="488" fill="none" stroke="#f3f7fc" stroke-width="2.5"/>
+  <rect x="24" y="24" width="1152" height="472" fill="none" stroke="#f3f7fc" stroke-width=".8" stroke-opacity=".7"/>
+  <text x="56" y="92" font-family="Barlow Condensed" font-weight="600" font-size="15" letter-spacing="4" fill="#cddbec">A ROBFROMBOULDER PROJECT</text>
+  <text x="54" y="180" font-family="Barlow Condensed" font-weight="700" font-size="92" letter-spacing="4" fill="#f3f7fc">VIEWZOO</text>
+  <text x="56" y="234" font-family="Patrick Hand SC" font-size="24" fill="#f3f7fc">DEFINE CROSS-CATALOG TRINO VIEWS</text>
+  <text x="56" y="268" font-family="Patrick Hand SC" font-size="24" fill="#f3f7fc">WITHOUT NEEDING A METASTORE</text>
+  <text x="56" y="316" font-family="Barlow Condensed" font-weight="600" font-size="15" letter-spacing="4" fill="#cddbec">GENERAL USAGE · SIMPLE EXAMPLES</text>
+  <g stroke="#f3f7fc" stroke-width="1" fill="none"><line x1="56" y1="336" x2="460" y2="336" marker-start="url(#tick)" marker-end="url(#tick)"/><line x1="56" y1="328" x2="56" y2="344"/><line x1="460" y1="328" x2="460" y2="344"/></g>
+  <g font-family="IBM Plex Mono" font-size="14" fill="#cddbec"><text x="56" y="372">create or replace view viewzoo.example.a as</text><text x="56" y="392">  select * from test.sales.orders</text><text x="56" y="428">create or replace view viewzoo.example.a as</text><text x="56" y="448">  select * from prod.sales_history.ordr_v2</text></g>
+  <g stroke="#f3f7fc" fill="none" filter="url(#wob)"><rect x="600" y="317" width="218" height="27" fill="#245f9f" stroke-width="2"/><path d="M600 326 H818 M600 335 H818 M622 317 v9 M644 317 v9 M666 317 v9 M688 317 v9 M710 317 v9 M732 317 v9 M754 317 v9 M776 317 v9 M798 317 v9 M633 326 v9 M655 326 v9 M677 326 v9 M699 326 v9 M721 326 v9 M743 326 v9 M765 326 v9 M787 326 v9 M809 326 v9 M622 335 v9 M644 335 v9 M666 335 v9 M688 335 v9 M710 335 v9 M732 335 v9 M754 335 v9 M776 335 v9 M798 335 v9" stroke-width="1.2"/><rect x="872" y="317" width="248" height="27" fill="#245f9f" stroke-width="2"/><path d="M872 326 H1120 M872 335 H1120 M905 317 v9 M927 317 v9 M949 317 v9 M971 317 v9 M993 317 v9 M1015 317 v9 M1037 317 v9 M1059 317 v9 M1081 317 v9 M1103 317 v9 M894 326 v9 M916 326 v9 M938 326 v9 M960 326 v9 M982 326 v9 M1004 326 v9 M1026 326 v9 M1048 326 v9 M1070 326 v9 M1092 326 v9 M1114 326 v9 M905 335 v9 M927 335 v9 M949 335 v9 M971 335 v9 M993 335 v9 M1015 335 v9 M1037 335 v9 M1059 335 v9 M1081 335 v9 M1103 335 v9" stroke-width="1.2"/>
+  </g>
+  <text x="600" y="364" font-family="Barlow Condensed" font-weight="700" font-size="14" letter-spacing="2" fill="#f3f7fc">TRINO CONNECTOR</text>
+  <g fill="none" stroke="#f3f7fc" filter="url(#wob)">
+    <rect x="600" y="64" width="220" height="196" rx="26" stroke-width="2.4" stroke-dasharray="14 6"/>
+    <rect x="870" y="64" width="250" height="150" rx="26" stroke-width="2.4" stroke-dasharray="14 6"/>
+  </g>
+  <path d="M600 52 v-16 M820 52 v-16 M600 44 H820 M606 41.8 L600 44 L606 46.2 M814 41.8 L820 44 L814 46.2 M592 64 h-16 M592 260 h-16 M584 64 V260 M581.8 70 L584 64 L586.2 70 M581.8 254 L584 260 L586.2 254" fill="none" stroke="#f3f7fc" stroke-opacity=".7" stroke-width=".8" stroke-linecap="round" stroke-linejoin="round"/>
+  <g fill="#f3f7fc"><circle cx="600" cy="162" r="3"/><circle cx="710" cy="64" r="3"/><circle cx="820" cy="162" r="3"/><circle cx="870" cy="140" r="3"/><circle cx="995" cy="64" r="3"/><circle cx="1120" cy="140" r="3"/></g>
+  <text x="620" y="96" font-family="Barlow Condensed" font-weight="700" font-size="18" letter-spacing="2.5" fill="#f3f7fc">FILESYSTEM</text><text x="890" y="96" font-family="Barlow Condensed" font-weight="700" font-size="18" letter-spacing="2.5" fill="#f3f7fc">POSTGRES</text>
+  <text x="620" y="118" font-family="Barlow Condensed" font-weight="700" font-size="18" letter-spacing="2.5" fill="#f3f7fc">STORAGE</text><text x="890" y="118" font-family="Barlow Condensed" font-weight="700" font-size="18" letter-spacing="2.5" fill="#f3f7fc">STORAGE</text>
+  <g transform="translate(636 200) scale(3.0)" stroke="#f3f7fc" stroke-width="0.533" stroke-linejoin="round" stroke-linecap="round" fill="#245f9f">
+  <path d="M-4.5 0 C-6 -5 -4.5 -13 0 -13 C4.5 -13 6 -5 4.5 0 Z"/>
+  <path d="M-2.6 -1 C-3.2 -5 -2.2 -8 0 -8 C2.2 -8 3.2 -5 2.6 -1" fill="none" stroke-opacity=".6"/>
+  <path d="M-5 -8 L-7.5 -3 M5 -8 L7.5 -3 M-2 0 h-3 M2 0 h3 M-1.6 -10 L0 -8.4 L1.6 -10" fill="none"/>
+  <circle cx="-1.6" cy="-11" r=".7" fill="#f3f7fc" stroke="none"/><circle cx="1.6" cy="-11" r=".7" fill="#f3f7fc" stroke="none"/>
+</g><g transform="translate(686 200) scale(3.0)" stroke="#f3f7fc" stroke-width="0.533" stroke-linejoin="round" stroke-linecap="round" fill="#245f9f">
+  <path d="M-4.5 0 C-6 -5 -4.5 -13 0 -13 C4.5 -13 6 -5 4.5 0 Z"/>
+  <path d="M-2.6 -1 C-3.2 -5 -2.2 -8 0 -8 C2.2 -8 3.2 -5 2.6 -1" fill="none" stroke-opacity=".6"/>
+  <path d="M-5 -8 L-7.5 -3 M5 -8 L7.5 -3 M-2 0 h-3 M2 0 h3 M-1.6 -10 L0 -8.4 L1.6 -10" fill="none"/>
+  <circle cx="-1.6" cy="-11" r=".7" fill="#f3f7fc" stroke="none"/><circle cx="1.6" cy="-11" r=".7" fill="#f3f7fc" stroke="none"/>
+</g><g transform="translate(736 200) scale(3.0)" stroke="#f3f7fc" stroke-width="0.533" stroke-linejoin="round" stroke-linecap="round" fill="#245f9f">
+  <path d="M-4.5 0 C-6 -5 -4.5 -13 0 -13 C4.5 -13 6 -5 4.5 0 Z"/>
+  <path d="M-2.6 -1 C-3.2 -5 -2.2 -8 0 -8 C2.2 -8 3.2 -5 2.6 -1" fill="none" stroke-opacity=".6"/>
+  <path d="M-5 -8 L-7.5 -3 M5 -8 L7.5 -3 M-2 0 h-3 M2 0 h3 M-1.6 -10 L0 -8.4 L1.6 -10" fill="none"/>
+  <circle cx="-1.6" cy="-11" r=".7" fill="#f3f7fc" stroke="none"/><circle cx="1.6" cy="-11" r=".7" fill="#f3f7fc" stroke="none"/>
+</g><g transform="translate(786 200) scale(3.0)" stroke="#f3f7fc" stroke-width="0.533" stroke-linejoin="round" stroke-linecap="round" fill="#245f9f">
+  <path d="M-4.5 0 C-6 -5 -4.5 -13 0 -13 C4.5 -13 6 -5 4.5 0 Z"/>
+  <path d="M-2.6 -1 C-3.2 -5 -2.2 -8 0 -8 C2.2 -8 3.2 -5 2.6 -1" fill="none" stroke-opacity=".6"/>
+  <path d="M-5 -8 L-7.5 -3 M5 -8 L7.5 -3 M-2 0 h-3 M2 0 h3 M-1.6 -10 L0 -8.4 L1.6 -10" fill="none"/>
+  <circle cx="-1.6" cy="-11" r=".7" fill="#f3f7fc" stroke="none"/><circle cx="1.6" cy="-11" r=".7" fill="#f3f7fc" stroke="none"/>
+</g><g transform="translate(661 246) scale(3.0)" stroke="#f3f7fc" stroke-width="0.533" stroke-linejoin="round" stroke-linecap="round" fill="#245f9f">
+  <path d="M-4.5 0 C-6 -5 -4.5 -13 0 -13 C4.5 -13 6 -5 4.5 0 Z"/>
+  <path d="M-2.6 -1 C-3.2 -5 -2.2 -8 0 -8 C2.2 -8 3.2 -5 2.6 -1" fill="none" stroke-opacity=".6"/>
+  <path d="M-5 -8 L-7.5 -3 M5 -8 L7.5 -3 M-2 0 h-3 M2 0 h3 M-1.6 -10 L0 -8.4 L1.6 -10" fill="none"/>
+  <circle cx="-1.6" cy="-11" r=".7" fill="#f3f7fc" stroke="none"/><circle cx="1.6" cy="-11" r=".7" fill="#f3f7fc" stroke="none"/>
+</g><g transform="translate(711 246) scale(3.0)" stroke="#f3f7fc" stroke-width="0.533" stroke-linejoin="round" stroke-linecap="round" fill="#245f9f">
+  <path d="M-4.5 0 C-6 -5 -4.5 -13 0 -13 C4.5 -13 6 -5 4.5 0 Z"/>
+  <path d="M-2.6 -1 C-3.2 -5 -2.2 -8 0 -8 C2.2 -8 3.2 -5 2.6 -1" fill="none" stroke-opacity=".6"/>
+  <path d="M-5 -8 L-7.5 -3 M5 -8 L7.5 -3 M-2 0 h-3 M2 0 h3 M-1.6 -10 L0 -8.4 L1.6 -10" fill="none"/>
+  <circle cx="-1.6" cy="-11" r=".7" fill="#f3f7fc" stroke="none"/><circle cx="1.6" cy="-11" r=".7" fill="#f3f7fc" stroke="none"/>
+</g><g transform="translate(761 246) scale(3.0)" stroke="#f3f7fc" stroke-width="0.533" stroke-linejoin="round" stroke-linecap="round" fill="#245f9f">
+  <path d="M-4.5 0 C-6 -5 -4.5 -13 0 -13 C4.5 -13 6 -5 4.5 0 Z"/>
+  <path d="M-2.6 -1 C-3.2 -5 -2.2 -8 0 -8 C2.2 -8 3.2 -5 2.6 -1" fill="none" stroke-opacity=".6"/>
+  <path d="M-5 -8 L-7.5 -3 M5 -8 L7.5 -3 M-2 0 h-3 M2 0 h3 M-1.6 -10 L0 -8.4 L1.6 -10" fill="none"/>
+  <circle cx="-1.6" cy="-11" r=".7" fill="#f3f7fc" stroke="none"/><circle cx="1.6" cy="-11" r=".7" fill="#f3f7fc" stroke="none"/>
+</g>
+  <g transform="translate(938 202) scale(3.1)" stroke="#f3f7fc" stroke-width="0.516" stroke-linejoin="round" stroke-linecap="round" fill="#245f9f">
+  <rect x="-5" y="-6" width="3" height="6"/><rect x="-1" y="-6" width="3" height="6"/><rect x="5" y="-6" width="3" height="6"/><rect x="9" y="-6" width="3" height="6"/>
+  <ellipse cx="2" cy="-8" rx="9.5" ry="6"/>
+  <circle cx="-8" cy="-10" r="5"/>
+  <path d="M-12.5 -8 C-16 -4 -15 0 -11.5 0 L-10 -1.5 C-12 -3 -11.5 -5 -9 -6.5 Z"/>
+  <ellipse cx="-5" cy="-9.5" rx="3" ry="4"/>
+  <path d="M12 -10 C15 -9 15 -5 14 -3" fill="none"/>
+  <circle cx="-10.5" cy="-11.5" r=".7" fill="#f3f7fc" stroke="none"/>
+</g><g transform="translate(1024 202) scale(2.3)" stroke="#f3f7fc" stroke-width="0.696" stroke-linejoin="round" stroke-linecap="round" fill="#245f9f">
+  <rect x="-5" y="-6" width="3" height="6"/><rect x="-1" y="-6" width="3" height="6"/><rect x="5" y="-6" width="3" height="6"/><rect x="9" y="-6" width="3" height="6"/>
+  <ellipse cx="2" cy="-8" rx="9.5" ry="6"/>
+  <circle cx="-8" cy="-10" r="5"/>
+  <path d="M-12.5 -8 C-16 -4 -15 0 -11.5 0 L-10 -1.5 C-12 -3 -11.5 -5 -9 -6.5 Z"/>
+  <ellipse cx="-5" cy="-9.5" rx="3" ry="4"/>
+  <path d="M12 -10 C15 -9 15 -5 14 -3" fill="none"/>
+  <circle cx="-10.5" cy="-11.5" r=".7" fill="#f3f7fc" stroke="none"/>
+</g>
+  <g fill="none" stroke="#f3f7fc" stroke-width="1.3" stroke-opacity=".8"><rect x="1070" y="150" width="42" height="46"/><path d="M1070 165 h42 M1070 180 h42 M1086 150 v46" stroke-opacity=".6"/></g>
+  <g fill="none" stroke="#ffd447" stroke-width="2.2" stroke-linecap="round">
+    <path d="M698 424 C780 420 845 400 845 336 V282"/>
+    <path d="M845 282 C845 250 794 250 790 205" marker-end="url(#arr-y)"/>
+    <path d="M845 282 C845 240 1018 250 1028 207" marker-end="url(#arr-y)"/>
+  </g>
+  <g stroke="#f3f7fc" filter="url(#wob)">
+    <rect x="818" y="298" width="12" height="46" fill="#1f5590" stroke-width="2"/><rect x="860" y="298" width="12" height="46" fill="#1f5590" stroke-width="2"/>
+    <path d="M816 298 h16 l-8 -9 z M858 298 h16 l-8 -9 z" fill="#1f5590" stroke-width="1.6"/>
+    <rect x="830" y="301" width="30" height="9" fill="#1f5590" stroke-width="1.8"/>
+  </g>
+  <text x="1000" y="262" font-family="Caveat" font-weight="700" font-size="24" fill="#ffd447" stroke="#245f9f" stroke-width="7" stroke-linejoin="round" paint-order="stroke" transform="rotate(-5 1000 262)">read &amp; write</text><text x="1000" y="286" font-family="Caveat" font-weight="700" font-size="19" fill="#ffd447" stroke="#245f9f" stroke-width="7" stroke-linejoin="round" paint-order="stroke" transform="rotate(-5 1000 286)">view definitions</text>
+  <text x="690" y="432" text-anchor="end" font-family="Caveat" font-weight="700" font-size="24" fill="#ffd447" stroke="#245f9f" stroke-width="7" stroke-linejoin="round" paint-order="stroke" transform="rotate(-5 690 432)">apps and agents</text>
+  <g font-family="Barlow Condensed" fill="#f3f7fc">
+    <rect x="828" y="410" width="340" height="86" fill="#1f5590" stroke="#f3f7fc" stroke-width="2"/>
+    <line x1="828" y1="440" x2="1168" y2="440" stroke="#f3f7fc"/><line x1="828" y1="468" x2="1168" y2="468" stroke="#f3f7fc" stroke-width=".8"/>
+    <line x1="924" y1="440" x2="924" y2="496" stroke="#f3f7fc" stroke-width=".8"/><line x1="1060" y1="440" x2="1060" y2="496" stroke="#f3f7fc" stroke-width=".8"/>
+    <text x="840" y="432" font-weight="700" font-size="19" letter-spacing="3">VIEWZOO</text>
+    <g font-size="10" letter-spacing="1.5" fill="#cddbec"><text x="836" y="452">REVISION</text><text x="932" y="452">SCALE</text><text x="1068" y="452">LICENSE</text><text x="836" y="480">DATE</text><text x="932" y="480">ARCHITECT</text><text x="1068" y="480">TESTED WITH</text></g>
+    <g font-size="14" font-weight="600" letter-spacing="1"><text x="858" y="465">479</text><text x="932" y="465">500+ VIEWS</text><text x="1068" y="465">APACHE 2</text><text x="836" y="492">2026-10-05</text><text x="932" y="492">ROBFROMBOULDER</text><text x="1068" y="492">CLAUDE</text></g>
+    <path d="M838 465 l8 -12 l8 12 z" fill="none" stroke="#f3f7fc" stroke-width="1.2"/>
+  </g>
+  <rect width="1200" height="520" rx="10" filter="url(#paper)" opacity=".9" pointer-events="none"/>
+</svg>
