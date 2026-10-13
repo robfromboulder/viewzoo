@@ -121,7 +121,7 @@
     <line x1="924" y1="440" x2="924" y2="496" stroke="#f3f7fc" stroke-width=".8"/><line x1="1060" y1="440" x2="1060" y2="496" stroke="#f3f7fc" stroke-width=".8"/>
     <text x="840" y="432" font-weight="700" font-size="19" letter-spacing="3">VIEWZOO</text>
     <g font-size="10" letter-spacing="1.5" fill="#cddbec"><text x="836" y="452">REVISION</text><text x="932" y="452">SCALE</text><text x="1068" y="452">LICENSE</text><text x="836" y="480">DATE</text><text x="932" y="480">ARCHITECT</text><text x="1068" y="480">TESTED WITH</text></g>
-    <g font-size="14" font-weight="600" letter-spacing="1"><text x="858" y="465">479</text><text x="932" y="465">500+ VIEWS</text><text x="1068" y="465">APACHE 2</text><text x="836" y="492">2026-10-05</text><text x="932" y="492">ROBFROMBOULDER</text><text x="1068" y="492">CLAUDE</text></g>
+    <g font-size="14" font-weight="600" letter-spacing="1"><text x="858" y="465">483</text><text x="932" y="465">500+ VIEWS</text><text x="1068" y="465">APACHE 2</text><text x="836" y="492">2026-10-12</text><text x="932" y="492">ROBFROMBOULDER</text><text x="1068" y="492">CLAUDE</text></g>
     <path d="M838 465 l8 -12 l8 12 z" fill="none" stroke="#f3f7fc" stroke-width="1.2"/>
   </g>
   <rect width="1200" height="520" rx="10" filter="url(#paper)" opacity=".9" pointer-events="none"/>
