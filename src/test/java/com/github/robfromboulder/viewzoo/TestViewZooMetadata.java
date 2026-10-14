@@ -68,7 +68,17 @@ public class TestViewZooMetadata {
     public void testRenameToInvalidName() {
         assertErrorCode(() -> metadata.renameView(null, SOURCE, new SchemaTableName("s", "invalid.table")), INVALID_ARGUMENTS.toErrorCode().getCode());
         assertErrorCode(() -> metadata.renameView(null, SOURCE, new SchemaTableName("s", "x".repeat(101))), INVALID_ARGUMENTS.toErrorCode().getCode());
+        assertErrorCode(() -> metadata.renameView(null, SOURCE, new SchemaTableName("s", "a/b")), INVALID_ARGUMENTS.toErrorCode().getCode());
         assertTrue(storage.renames.isEmpty());
+    }
+
+    @Test
+    public void testCreateWithPathCharacters() {
+        for (String name : List.of("a/b", "../b", "a\\b", "a\0b")) {
+            assertErrorCode(() -> metadata.createView(null, new SchemaTableName("s", name), DEFINITION, Map.of(), false), INVALID_ARGUMENTS.toErrorCode().getCode());
+            assertErrorCode(() -> metadata.createView(null, new SchemaTableName(name, "t"), DEFINITION, Map.of(), false), INVALID_ARGUMENTS.toErrorCode().getCode());
+        }
+        assertEquals(metadata.listViews(null, Optional.empty()), List.of(SOURCE));
     }
 
     @Test
