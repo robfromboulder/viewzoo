@@ -10,13 +10,14 @@ import io.trino.spi.connector.SchemaTableName;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Stream;
 
+import static io.trino.spi.StandardErrorCode.ALREADY_EXISTS;
 import static io.trino.spi.StandardErrorCode.CONFIGURATION_INVALID;
 import static io.trino.spi.StandardErrorCode.GENERIC_INTERNAL_ERROR;
 import static java.util.Objects.requireNonNull;
@@ -75,10 +76,13 @@ public class ViewZooLocalFileSystemClient implements ViewZooStorageClient {
     public void renameView(String sourceSchema, String sourceTable, String targetSchema, String targetTable) {
         File source = new File(dir, sourceSchema + "." + sourceTable + ".json");
         File target = new File(dir, targetSchema + "." + targetTable + ".json");
+        // no ATOMIC_MOVE: it replaces an existing target on POSIX; a plain same-directory move is still a rename(2) but refuses to overwrite
         try {
-            Files.move(source.toPath(), target.toPath(), StandardCopyOption.ATOMIC_MOVE);
+            Files.move(source.toPath(), target.toPath());
+        } catch (FileAlreadyExistsException e) {
+            throw new TrinoException(ALREADY_EXISTS, "View already exists: " + targetSchema + "." + targetTable, e);
         } catch (IOException e) {
-            throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to rename file: " + source + " to " + target);
+            throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to rename file: " + source + " to " + target + ": " + e.getMessage(), e);
         }
     }
 
