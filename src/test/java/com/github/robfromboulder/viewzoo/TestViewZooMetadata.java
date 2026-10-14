@@ -87,6 +87,23 @@ public class TestViewZooMetadata {
         assertEquals(metadata.getView(null, TARGET), Optional.empty());
     }
 
+    @Test
+    public void testCreateStorageFailureLeavesCacheUnchanged() {
+        storage.failWrites = true;
+        ConnectorViewDefinition replacement = new ConnectorViewDefinition("SELECT 2 AS x", Optional.empty(), Optional.empty(), DEFINITION.getColumns(), Optional.empty(), Optional.empty(), false, List.of());
+        assertErrorCode(() -> metadata.createView(null, TARGET, DEFINITION, Map.of(), false), GENERIC_INTERNAL_ERROR.toErrorCode().getCode());
+        assertErrorCode(() -> metadata.createView(null, SOURCE, replacement, Map.of(), true), GENERIC_INTERNAL_ERROR.toErrorCode().getCode());
+        assertEquals(metadata.getView(null, TARGET), Optional.empty());
+        assertEquals(metadata.getView(null, SOURCE), Optional.of(DEFINITION));
+    }
+
+    @Test
+    public void testDropStorageFailureLeavesCacheUnchanged() {
+        storage.failWrites = true;
+        assertErrorCode(() -> metadata.dropView(null, SOURCE), GENERIC_INTERNAL_ERROR.toErrorCode().getCode());
+        assertEquals(metadata.getView(null, SOURCE), Optional.of(DEFINITION));
+    }
+
     private static void assertErrorCode(Runnable runnable, int code) {
         TrinoException e = expectThrows(TrinoException.class, runnable::run);
         assertEquals(e.getErrorCode().getCode(), code);
@@ -98,6 +115,7 @@ public class TestViewZooMetadata {
         private final List<String> renames = new ArrayList<>();
         private boolean failRename;
         private boolean missingOnRename;
+        private boolean failWrites;
 
         @Override
         public Map<SchemaTableName, ConnectorViewDefinition> getViews() {
@@ -105,10 +123,14 @@ public class TestViewZooMetadata {
         }
 
         @Override
-        public void createView(String schema, String table, ConnectorViewDefinition definition) {}
+        public void createView(String schema, String table, ConnectorViewDefinition definition) {
+            if (failWrites) throw new TrinoException(GENERIC_INTERNAL_ERROR, "Simulated storage failure");
+        }
 
         @Override
-        public void dropView(String schema, String table) {}
+        public void dropView(String schema, String table) {
+            if (failWrites) throw new TrinoException(GENERIC_INTERNAL_ERROR, "Simulated storage failure");
+        }
 
         @Override
         public void renameView(String sourceSchema, String sourceTable, String targetSchema, String targetTable) {
