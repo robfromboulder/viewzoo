@@ -8,6 +8,7 @@ import com.github.robfromboulder.viewzoo.config.ViewZooJdbcConfig;
 import io.trino.spi.TrinoException;
 import io.trino.spi.connector.ConnectorViewDefinition;
 import io.trino.spi.connector.SchemaTableName;
+import io.trino.spi.connector.ViewNotFoundException;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -19,10 +20,14 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 
+import static io.trino.spi.StandardErrorCode.ALREADY_EXISTS;
 import static io.trino.spi.StandardErrorCode.GENERIC_INTERNAL_ERROR;
 import static java.util.Objects.requireNonNull;
 
 public class ViewZooJdbcClient implements ViewZooStorageClient {
+
+    // PostgreSQL SQLSTATE for unique_violation
+    private static final String UNIQUE_VIOLATION = "23505";
 
     public ViewZooJdbcClient(ViewZooJdbcConfig config, ObjectMapper mapper) {
         this.mapper = mapper;
@@ -98,6 +103,21 @@ public class ViewZooJdbcClient implements ViewZooStorageClient {
             statement.executeUpdate();
         } catch (SQLException e) {
             throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to delete view definition: " + e.getMessage());
+        }
+    }
+
+    @Override
+    public void renameView(String sourceSchema, String sourceTable, String targetSchema, String targetTable) {
+        try (Connection connection = getConnection();
+             PreparedStatement statement = connection.prepareStatement("UPDATE viewzoo SET schema=?, view_name=? WHERE schema=? AND view_name=?")) {
+            statement.setString(1, targetSchema);
+            statement.setString(2, targetTable);
+            statement.setString(3, sourceSchema);
+            statement.setString(4, sourceTable);
+            if (statement.executeUpdate() == 0) throw new ViewNotFoundException(new SchemaTableName(sourceSchema, sourceTable));
+        } catch (SQLException e) {
+            if (UNIQUE_VIOLATION.equals(e.getSQLState())) throw new TrinoException(ALREADY_EXISTS, "View already exists: " + new SchemaTableName(targetSchema, targetTable), e);
+            throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to rename view definition: " + e.getMessage(), e);
         }
     }
 

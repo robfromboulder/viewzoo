@@ -15,4 +15,6 @@ public interface ViewZooStorageClient {
 
     void dropView(String schema, String table);
 
+    void renameView(String sourceSchema, String sourceTable, String targetSchema, String targetTable);
+
 }
