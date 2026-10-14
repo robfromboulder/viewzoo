@@ -143,9 +143,14 @@ Examine current view definition:
 show create view viewzoo.example.hello
 ```
 
+Rename the view:
+```sql
+alter view viewzoo.example.hello rename to viewzoo.example.greeting
+```
+
 Delete the view:
 ```sql
-drop view viewzoo.example.hello
+drop view viewzoo.example.greeting
 ```
 
 ## Limitations
