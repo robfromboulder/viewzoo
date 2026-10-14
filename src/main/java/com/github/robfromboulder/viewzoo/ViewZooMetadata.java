@@ -71,7 +71,13 @@ public class ViewZooMetadata implements ConnectorMetadata {
         if (definition == null) throw new ViewNotFoundException(source);
         if (views.containsKey(target)) throw new TrinoException(ALREADY_EXISTS, "View already exists: " + target);
         // update storage first so a storage failure leaves the cache unchanged
-        storageClient.renameView(source.getSchemaName(), source.getTableName(), target.getSchemaName(), target.getTableName());
+        try {
+            storageClient.renameView(source.getSchemaName(), source.getTableName(), target.getSchemaName(), target.getTableName());
+        } catch (ViewNotFoundException e) {
+            // storage lost the view outside Trino; evict it so it stops being listed
+            views.remove(source);
+            throw e;
+        }
         views.remove(source);
         views.put(target, definition);
     }

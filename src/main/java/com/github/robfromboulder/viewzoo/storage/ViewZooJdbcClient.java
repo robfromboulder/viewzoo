@@ -116,7 +116,7 @@ public class ViewZooJdbcClient implements ViewZooStorageClient {
             statement.setString(4, sourceTable);
             if (statement.executeUpdate() == 0) throw new ViewNotFoundException(new SchemaTableName(sourceSchema, sourceTable));
         } catch (SQLException e) {
-            if (UNIQUE_VIOLATION.equals(e.getSQLState())) throw new TrinoException(ALREADY_EXISTS, "View already exists: " + targetSchema + "." + targetTable, e);
+            if (UNIQUE_VIOLATION.equals(e.getSQLState())) throw new TrinoException(ALREADY_EXISTS, "View already exists: " + new SchemaTableName(targetSchema, targetTable), e);
             throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to rename view definition: " + e.getMessage(), e);
         }
     }

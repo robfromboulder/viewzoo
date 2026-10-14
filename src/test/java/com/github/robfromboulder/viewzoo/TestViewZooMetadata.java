@@ -79,6 +79,14 @@ public class TestViewZooMetadata {
         assertEquals(metadata.getView(null, TARGET), Optional.empty());
     }
 
+    @Test
+    public void testRenameEvictsViewMissingFromStorage() {
+        storage.missingOnRename = true;
+        assertThrows(ViewNotFoundException.class, () -> metadata.renameView(null, SOURCE, TARGET));
+        assertEquals(metadata.getView(null, SOURCE), Optional.empty());
+        assertEquals(metadata.getView(null, TARGET), Optional.empty());
+    }
+
     private static void assertErrorCode(Runnable runnable, int code) {
         TrinoException e = expectThrows(TrinoException.class, runnable::run);
         assertEquals(e.getErrorCode().getCode(), code);
@@ -89,6 +97,7 @@ public class TestViewZooMetadata {
         private final Map<SchemaTableName, ConnectorViewDefinition> views = new HashMap<>();
         private final List<String> renames = new ArrayList<>();
         private boolean failRename;
+        private boolean missingOnRename;
 
         @Override
         public Map<SchemaTableName, ConnectorViewDefinition> getViews() {
@@ -104,6 +113,7 @@ public class TestViewZooMetadata {
         @Override
         public void renameView(String sourceSchema, String sourceTable, String targetSchema, String targetTable) {
             if (failRename) throw new TrinoException(GENERIC_INTERNAL_ERROR, "Simulated storage failure");
+            if (missingOnRename) throw new ViewNotFoundException(new SchemaTableName(sourceSchema, sourceTable));
             renames.add(sourceSchema + "." + sourceTable + "->" + targetSchema + "." + targetTable);
         }
 

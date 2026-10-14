@@ -7,12 +7,14 @@ import com.github.robfromboulder.viewzoo.config.ViewZooFilesystemConfig;
 import io.trino.spi.TrinoException;
 import io.trino.spi.connector.ConnectorViewDefinition;
 import io.trino.spi.connector.SchemaTableName;
+import io.trino.spi.connector.ViewNotFoundException;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
-import java.nio.file.Paths;
+import java.nio.file.NoSuchFileException;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -54,36 +56,47 @@ public class ViewZooLocalFileSystemClient implements ViewZooStorageClient {
 
     @Override
     public void createView(String schema, String table, ConnectorViewDefinition definition) {
-        File f = new File(dir, schema + "." + table + ".json");
+        Path path = viewPath(schema, table);
         try {
-            Files.writeString(Paths.get(f.toURI()), mapper.writeValueAsString(definition));
+            Files.writeString(path, mapper.writeValueAsString(definition));
         } catch (IOException e) {
-            throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to write file: " + f);
+            throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to write file: " + path);
         }
     }
 
     @Override
     public void dropView(String schema, String table) {
-        File f = new File(dir, schema + "." + table + ".json");
+        Path path = viewPath(schema, table);
         try {
-            Files.deleteIfExists(Paths.get(f.toURI()));
+            Files.deleteIfExists(path);
         } catch (IOException e) {
-            throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to delete file: " + f);
+            throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to delete file: " + path);
         }
     }
 
     @Override
     public void renameView(String sourceSchema, String sourceTable, String targetSchema, String targetTable) {
-        File source = new File(dir, sourceSchema + "." + sourceTable + ".json");
-        File target = new File(dir, targetSchema + "." + targetTable + ".json");
-        // no ATOMIC_MOVE: it replaces an existing target on POSIX; a plain same-directory move is still a rename(2) but refuses to overwrite
+        Path source = viewPath(sourceSchema, sourceTable);
+        Path target = viewPath(targetSchema, targetTable);
+        // link(2) atomically refuses an existing target, where Files.move only checks before rename(2) replaces it
         try {
-            Files.move(source.toPath(), target.toPath());
+            Files.createLink(target, source);
         } catch (FileAlreadyExistsException e) {
-            throw new TrinoException(ALREADY_EXISTS, "View already exists: " + targetSchema + "." + targetTable, e);
+            throw new TrinoException(ALREADY_EXISTS, "View already exists: " + new SchemaTableName(targetSchema, targetTable), e);
+        } catch (NoSuchFileException e) {
+            throw new ViewNotFoundException(new SchemaTableName(sourceSchema, sourceTable));
         } catch (IOException e) {
-            throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to rename file: " + source + " to " + target + ": " + e.getMessage(), e);
+            throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to link file: " + source + " to " + target + ": " + e.getMessage(), e);
         }
+        try {
+            Files.delete(source);
+        } catch (IOException e) {
+            throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to delete file: " + source + ": " + e.getMessage(), e);
+        }
+    }
+
+    private Path viewPath(String schema, String table) {
+        return dir.toPath().resolve(schema + "." + table + ".json");
     }
 
 }

@@ -5,6 +5,7 @@ package com.github.robfromboulder.viewzoo.storage;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.robfromboulder.viewzoo.config.ViewZooFilesystemConfig;
 import io.trino.spi.TrinoException;
+import io.trino.spi.connector.ViewNotFoundException;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
@@ -54,6 +55,12 @@ public class TestViewZooLocalFileSystemClient {
         assertEquals(e.getErrorCode(), ALREADY_EXISTS.toErrorCode());
         assertEquals(Files.readString(dir.resolve("s.source.json")), "source");
         assertEquals(Files.readString(dir.resolve("t.target.json")), "target");
+    }
+
+    @Test
+    public void testRenameMissingSource() {
+        expectThrows(ViewNotFoundException.class, () -> client.renameView("s", "source", "t", "target"));
+        assertFalse(Files.exists(dir.resolve("t.target.json")));
     }
 
 }
