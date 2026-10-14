@@ -47,22 +47,13 @@ public class ViewZooMetadata implements ConnectorMetadata {
 
     @Override
     public synchronized void createView(ConnectorSession session, SchemaTableName stn, ConnectorViewDefinition definition, Map<String, Object> viewProperties, boolean replace) {
-        String schema = stn.getSchemaName();
-        String table = stn.getTableName();
-        if (schema.contains(".")) {
-            throw new TrinoException(INVALID_ARGUMENTS, "Invalid schema name: " + schema);
-        } else if (table.contains(".")) {
-            throw new TrinoException(INVALID_ARGUMENTS, "Invalid table name: " + table);
-        } else if (schema.length() > MAX_SCHEMA_NAME_LENGTH) {
-            throw new TrinoException(INVALID_ARGUMENTS, "Schema name exceeds maximum length of " + MAX_SCHEMA_NAME_LENGTH + ": " + schema);
-        } else if (table.length() > MAX_TABLE_NAME_LENGTH) {
-            throw new TrinoException(INVALID_ARGUMENTS, "Table name exceeds maximum length of " + MAX_TABLE_NAME_LENGTH + ": " + table);
-        } else if (replace) {
+        validateName(stn);
+        if (replace) {
             views.put(stn, definition);
         } else if (views.putIfAbsent(stn, definition) != null) {
             throw new TrinoException(ALREADY_EXISTS, "View already exists: " + stn);
         }
-        storageClient.createView(schema, table, definition);
+        storageClient.createView(stn.getSchemaName(), stn.getTableName(), definition);
     }
 
     @Override
@@ -71,6 +62,18 @@ public class ViewZooMetadata implements ConnectorMetadata {
         String schema = stn.getSchemaName();
         String table = stn.getTableName();
         storageClient.dropView(schema, table);
+    }
+
+    @Override
+    public synchronized void renameView(ConnectorSession session, SchemaTableName source, SchemaTableName target) {
+        validateName(target);
+        ConnectorViewDefinition definition = views.get(source);
+        if (definition == null) throw new ViewNotFoundException(source);
+        if (views.containsKey(target)) throw new TrinoException(ALREADY_EXISTS, "View already exists: " + target);
+        // update storage first so a storage failure leaves the cache unchanged
+        storageClient.renameView(source.getSchemaName(), source.getTableName(), target.getSchemaName(), target.getTableName());
+        views.remove(source);
+        views.put(target, definition);
     }
 
     @Override
@@ -122,6 +125,20 @@ public class ViewZooMetadata implements ConnectorMetadata {
     @Override
     public synchronized List<SchemaTableName> listViews(ConnectorSession session, Optional<String> schemaName) {
         return views.keySet().stream().filter(viewName -> schemaName.map(viewName.getSchemaName()::equals).orElse(true)).collect(toImmutableList());
+    }
+
+    private static void validateName(SchemaTableName stn) {
+        String schema = stn.getSchemaName();
+        String table = stn.getTableName();
+        if (schema.contains(".")) {
+            throw new TrinoException(INVALID_ARGUMENTS, "Invalid schema name: " + schema);
+        } else if (table.contains(".")) {
+            throw new TrinoException(INVALID_ARGUMENTS, "Invalid table name: " + table);
+        } else if (schema.length() > MAX_SCHEMA_NAME_LENGTH) {
+            throw new TrinoException(INVALID_ARGUMENTS, "Schema name exceeds maximum length of " + MAX_SCHEMA_NAME_LENGTH + ": " + schema);
+        } else if (table.length() > MAX_TABLE_NAME_LENGTH) {
+            throw new TrinoException(INVALID_ARGUMENTS, "Table name exceeds maximum length of " + MAX_TABLE_NAME_LENGTH + ": " + table);
+        }
     }
 
 }

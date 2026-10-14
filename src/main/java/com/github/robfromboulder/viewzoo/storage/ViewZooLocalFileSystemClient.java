@@ -12,6 +12,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -67,6 +68,17 @@ public class ViewZooLocalFileSystemClient implements ViewZooStorageClient {
             Files.deleteIfExists(Paths.get(f.toURI()));
         } catch (IOException e) {
             throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to delete file: " + f);
+        }
+    }
+
+    @Override
+    public void renameView(String sourceSchema, String sourceTable, String targetSchema, String targetTable) {
+        File source = new File(dir, sourceSchema + "." + sourceTable + ".json");
+        File target = new File(dir, targetSchema + "." + targetTable + ".json");
+        try {
+            Files.move(source.toPath(), target.toPath(), StandardCopyOption.ATOMIC_MOVE);
+        } catch (IOException e) {
+            throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to rename file: " + source + " to " + target);
         }
     }
 

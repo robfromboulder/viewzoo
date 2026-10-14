@@ -137,6 +137,68 @@ public class TestViewZooIntegration {
     }
 
     @Test(groups = "integration", dataProvider = "catalogs")
+    public void testViewRenaming(String catalog) throws Exception {
+        String original = catalog + ".renaming.original";
+        String renamed = catalog + ".renaming.renamed";
+        String moved = catalog + ".renamed.moved";
+        String other = catalog + ".renaming.other";
+
+        try (Connection connection = DriverManager.getConnection(TRINO_JDBC_URL, TRINO_USER, null);
+             Statement statement = connection.createStatement()) {
+            statement.execute("CREATE VIEW " + original + " AS SELECT * FROM (VALUES (1, 'a')) AS t (key, value)");
+            statement.execute("CREATE VIEW " + other + " AS SELECT 2 AS key");
+
+            // rename within schema, verify data follows and old name is gone
+            statement.execute("ALTER VIEW " + original + " RENAME TO " + renamed);
+            assertSingleRow(statement, renamed, 1, "a");
+            assertViewMissing(statement, original);
+
+            // rename across schemas
+            statement.execute("ALTER VIEW " + renamed + " RENAME TO " + moved);
+            assertSingleRow(statement, moved, 1, "a");
+            assertViewMissing(statement, renamed);
+
+            // renaming onto an existing view should fail
+            try {
+                statement.execute("ALTER VIEW " + moved + " RENAME TO " + other);
+                throw new AssertionError("Expected ALTER VIEW to fail when target view already exists");
+            } catch (SQLException e) {
+                assertTrue(e.getMessage().contains("already exists"), "Expected 'already exists' error but got: " + e.getMessage());
+            }
+
+            // renaming a missing view should fail
+            try {
+                statement.execute("ALTER VIEW " + original + " RENAME TO " + catalog + ".renaming.nowhere");
+                throw new AssertionError("Expected ALTER VIEW to fail when source view does not exist");
+            } catch (SQLException e) {
+                assertTrue(e.getMessage().contains("does not exist"), "Expected 'does not exist' error but got: " + e.getMessage());
+            }
+
+            // renaming to an invalid name should fail
+            try {
+                statement.execute("ALTER VIEW " + moved + " RENAME TO " + catalog + ".renaming.\"invalid.table\"");
+                throw new AssertionError("Expected ALTER VIEW to fail with period in table name");
+            } catch (SQLException e) {
+                assertTrue(e.getMessage().contains("Invalid table name"), "Expected 'Invalid table name' error but got: " + e.getMessage());
+            }
+        }
+
+        // restart Postgresql & Trino services
+        runCommand("docker", "compose", "restart");
+        waitForTrino();
+
+        // verify renamed view persisted under its new name only
+        try (Connection connection = DriverManager.getConnection(TRINO_JDBC_URL, TRINO_USER, null);
+             Statement statement = connection.createStatement()) {
+            assertSingleRow(statement, moved, 1, "a");
+            assertViewMissing(statement, original);
+            assertViewMissing(statement, renamed);
+            statement.execute("DROP VIEW " + moved);
+            statement.execute("DROP VIEW " + other);
+        }
+    }
+
+    @Test(groups = "integration", dataProvider = "catalogs")
     public void testViewsWithLongNames(String catalog) throws Exception {
         try (Connection connection = DriverManager.getConnection(TRINO_JDBC_URL, TRINO_USER, null);
              Statement statement = connection.createStatement()) {
@@ -199,6 +261,24 @@ public class TestViewZooIntegration {
             } catch (SQLException e) {
                 assertTrue(e.getMessage().contains("Invalid table name"), "Expected 'Invalid table name' error but got: " + e.getMessage());
             }
+        }
+    }
+
+    private static void assertSingleRow(Statement statement, String viewName, int key, String value) throws SQLException {
+        try (ResultSet rs = statement.executeQuery("SELECT * FROM " + viewName)) {
+            assertTrue(rs.next(), "Expected one row in " + viewName);
+            assertEquals(rs.getInt("key"), key);
+            assertEquals(rs.getString("value"), value);
+            assertFalse(rs.next(), "Expected no more rows in " + viewName);
+        }
+    }
+
+    private static void assertViewMissing(Statement statement, String viewName) {
+        try {
+            statement.executeQuery("SELECT * FROM " + viewName);
+            throw new AssertionError("Expected query to fail for missing view " + viewName);
+        } catch (SQLException e) {
+            assertTrue(e.getMessage().contains("does not exist"), "Expected 'does not exist' error but got: " + e.getMessage());
         }
     }
 

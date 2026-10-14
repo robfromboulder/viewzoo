@@ -101,4 +101,18 @@ public class ViewZooJdbcClient implements ViewZooStorageClient {
         }
     }
 
+    @Override
+    public void renameView(String sourceSchema, String sourceTable, String targetSchema, String targetTable) {
+        try (Connection connection = getConnection()) {
+            PreparedStatement statement = connection.prepareStatement("UPDATE viewzoo SET schema=?, view_name=? WHERE schema=? AND view_name=?");
+            statement.setString(1, targetSchema);
+            statement.setString(2, targetTable);
+            statement.setString(3, sourceSchema);
+            statement.setString(4, sourceTable);
+            statement.executeUpdate();
+        } catch (SQLException e) {
+            throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to rename view definition: " + e.getMessage());
+        }
+    }
+
 }
