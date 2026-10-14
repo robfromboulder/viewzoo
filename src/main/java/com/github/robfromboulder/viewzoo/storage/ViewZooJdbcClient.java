@@ -59,10 +59,10 @@ public class ViewZooJdbcClient implements ViewZooStorageClient {
 
     @Override
     public Map<SchemaTableName, ConnectorViewDefinition> getViews() {
-        try (Connection connection = getConnection()) {
+        try (Connection connection = getConnection();
+             Statement statement = connection.createStatement();
+             ResultSet resultSet = statement.executeQuery("SELECT schema, view_name, definition FROM viewzoo")) {
             Map<SchemaTableName, ConnectorViewDefinition> views = new HashMap<>();
-            Statement statement = connection.createStatement();
-            ResultSet resultSet = statement.executeQuery("SELECT schema, view_name, definition FROM viewzoo");
             while (resultSet.next()) {
                 String schemaName = resultSet.getString("schema");
                 String viewName = resultSet.getString("view_name");
@@ -81,8 +81,8 @@ public class ViewZooJdbcClient implements ViewZooStorageClient {
 
     @Override
     public void createView(String schema, String table, ConnectorViewDefinition definition) {
-        try (Connection connection = getConnection()) {
-            PreparedStatement statement = connection.prepareStatement("INSERT INTO viewzoo VALUES (?, ?, ?) on conflict (schema, view_name) do update set definition = EXCLUDED.definition");
+        try (Connection connection = getConnection();
+             PreparedStatement statement = connection.prepareStatement("INSERT INTO viewzoo VALUES (?, ?, ?) on conflict (schema, view_name) do update set definition = EXCLUDED.definition")) {
             statement.setString(1, schema);
             statement.setString(2, table);
             statement.setString(3, mapper.writeValueAsString(definition));
@@ -96,8 +96,8 @@ public class ViewZooJdbcClient implements ViewZooStorageClient {
 
     @Override
     public void dropView(String schema, String table) {
-        try (Connection connection = getConnection()) {
-            PreparedStatement statement = connection.prepareStatement("DELETE FROM viewzoo WHERE schema=? AND view_name=?");
+        try (Connection connection = getConnection();
+             PreparedStatement statement = connection.prepareStatement("DELETE FROM viewzoo WHERE schema=? AND view_name=?")) {
             statement.setString(1, schema);
             statement.setString(2, table);
             statement.executeUpdate();
