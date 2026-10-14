@@ -261,6 +261,14 @@ public class TestViewZooIntegration {
             } catch (SQLException e) {
                 assertTrue(e.getMessage().contains("Invalid table name"), "Expected 'Invalid table name' error but got: " + e.getMessage());
             }
+
+            // test table name containing path separator
+            try {
+                statement.execute("CREATE VIEW " + catalog + ".example.\"a/b\" AS SELECT 1 as x");
+                throw new AssertionError("Expected CREATE VIEW to fail with slash in table name");
+            } catch (SQLException e) {
+                assertTrue(e.getMessage().contains("Invalid table name"), "Expected 'Invalid table name' error but got: " + e.getMessage());
+            }
         }
     }
 

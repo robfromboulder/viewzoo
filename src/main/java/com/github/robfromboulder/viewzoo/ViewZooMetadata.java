@@ -136,15 +136,20 @@ public class ViewZooMetadata implements ConnectorMetadata {
     private static void validateName(SchemaTableName stn) {
         String schema = stn.getSchemaName();
         String table = stn.getTableName();
-        if (schema.contains(".")) {
+        if (hasReservedChar(schema)) {
             throw new TrinoException(INVALID_ARGUMENTS, "Invalid schema name: " + schema);
-        } else if (table.contains(".")) {
+        } else if (hasReservedChar(table)) {
             throw new TrinoException(INVALID_ARGUMENTS, "Invalid table name: " + table);
         } else if (schema.length() > MAX_SCHEMA_NAME_LENGTH) {
             throw new TrinoException(INVALID_ARGUMENTS, "Schema name exceeds maximum length of " + MAX_SCHEMA_NAME_LENGTH + ": " + schema);
         } else if (table.length() > MAX_TABLE_NAME_LENGTH) {
             throw new TrinoException(INVALID_ARGUMENTS, "Table name exceeds maximum length of " + MAX_TABLE_NAME_LENGTH + ": " + table);
         }
+    }
+
+    // names must map to a single "schema.table.json" file, so reject the separator and path characters
+    private static boolean hasReservedChar(String name) {
+        return name.chars().anyMatch(c -> c == '.' || c == '/' || c == '\\' || c == '\0');
     }
 
 }
