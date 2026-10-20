@@ -2,11 +2,9 @@
 
 package com.github.robfromboulder.viewzoo.storage;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import com.github.robfromboulder.viewzoo.config.ViewZooJdbcConfig;
 import io.trino.spi.TrinoException;
+import io.trino.spi.connector.CatalogSchemaName;
 import io.trino.spi.connector.ConnectorViewDefinition;
 import io.trino.spi.connector.ConnectorViewDefinition.ViewColumn;
 import io.trino.spi.connector.SchemaTableName;
@@ -49,7 +47,7 @@ public class TestViewZooJdbcClient {
     private final List<Object> resources = new ArrayList<>();
     private ViewZooJdbcClient client;
 
-    @BeforeClass
+    @BeforeClass(groups = "integration")
     public void startPostgres() {
         if (!DockerClientFactory.instance().isDockerAvailable()) throw new SkipException("Docker is not available");
         postgres = new PostgreSQLContainer("postgres:16");
@@ -57,13 +55,13 @@ public class TestViewZooJdbcClient {
         config = new ViewZooJdbcConfig().setJdbcUrl(postgres.getJdbcUrl()).setJdbcUser(postgres.getUsername()).setJdbcPassword(postgres.getPassword());
     }
 
-    @AfterClass(alwaysRun = true)
+    @AfterClass(alwaysRun = true, groups = "integration")
     public void stopPostgres() {
         if (postgres != null) postgres.stop();
         postgres = null;
     }
 
-    @BeforeMethod
+    @BeforeMethod(groups = "integration")
     public void setUp() throws SQLException {
         try (Connection connection = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
              Statement statement = connection.createStatement()) {
@@ -73,69 +71,69 @@ public class TestViewZooJdbcClient {
         client = new TrackingJdbcClient();
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testCreatesTable() {
         assertEquals(client.getViews(), Map.of());
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testCreateView() {
         client.createView("s", "source", definition("SELECT 1 AS x"));
-        assertEquals(storedSql(), Map.of(SOURCE, "SELECT 1 AS x"));
+        assertStored(Map.of(SOURCE, "SELECT 1 AS x"));
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testCreateReplacesView() {
         client.createView("s", "source", definition("SELECT 1 AS x"));
         client.createView("s", "source", definition("SELECT 2 AS x"));
-        assertEquals(storedSql(), Map.of(SOURCE, "SELECT 2 AS x"));
+        assertStored(Map.of(SOURCE, "SELECT 2 AS x"));
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testGetViewsAfterReconnect() {
         client.createView("s", "source", definition("SELECT 1 AS x"));
         client.createView("t", "target", definition("SELECT 2 AS x"));
         client = new TrackingJdbcClient();
-        assertEquals(storedSql(), Map.of(SOURCE, "SELECT 1 AS x", TARGET, "SELECT 2 AS x"));
+        assertStored(Map.of(SOURCE, "SELECT 1 AS x", TARGET, "SELECT 2 AS x"));
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testDropView() {
         client.createView("s", "source", definition("SELECT 1 AS x"));
         client.createView("t", "target", definition("SELECT 2 AS x"));
         client.dropView("s", "source");
-        assertEquals(storedSql(), Map.of(TARGET, "SELECT 2 AS x"));
+        assertStored(Map.of(TARGET, "SELECT 2 AS x"));
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testDropMissingView() {
         client.dropView("s", "missing");
         assertEquals(client.getViews(), Map.of());
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testRenameView() {
         client.createView("s", "source", definition("SELECT 1 AS x"));
         client.renameView("s", "source", "t", "target");
-        assertEquals(storedSql(), Map.of(TARGET, "SELECT 1 AS x"));
+        assertStored(Map.of(TARGET, "SELECT 1 AS x"));
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testRenameDoesNotOverwriteExistingView() {
         client.createView("s", "source", definition("SELECT 1 AS x"));
         client.createView("t", "target", definition("SELECT 2 AS x"));
         TrinoException e = expectThrows(TrinoException.class, () -> client.renameView("s", "source", "t", "target"));
         assertEquals(e.getErrorCode(), ALREADY_EXISTS.toErrorCode());
-        assertEquals(storedSql(), Map.of(SOURCE, "SELECT 1 AS x", TARGET, "SELECT 2 AS x"));
+        assertStored(Map.of(SOURCE, "SELECT 1 AS x", TARGET, "SELECT 2 AS x"));
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testRenameMissingSource() {
         expectThrows(ViewNotFoundException.class, () -> client.renameView("s", "source", "t", "target"));
         assertEquals(client.getViews(), Map.of());
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testClosesResources() throws SQLException {
         client.createView("s", "source", definition("SELECT 1 AS x"));
         client.createView("t", "target", definition("SELECT 2 AS x"));
@@ -147,12 +145,21 @@ public class TestViewZooJdbcClient {
         for (Object resource : resources) assertTrue(isClosed(resource), "Not closed: " + resource);
     }
 
-    private Map<SchemaTableName, String> storedSql() {
-        return client.getViews().entrySet().stream().collect(toMap(Map.Entry::getKey, e -> e.getValue().getOriginalSql()));
+    private void assertStored(Map<SchemaTableName, String> expectedSql) {
+        Map<SchemaTableName, List<Object>> actual = client.getViews().entrySet().stream().collect(toMap(Map.Entry::getKey, e -> fields(e.getValue())));
+        Map<SchemaTableName, List<Object>> expected = expectedSql.entrySet().stream().collect(toMap(Map.Entry::getKey, e -> fields(definition(e.getValue()))));
+        assertEquals(actual, expected);
     }
 
     private static ConnectorViewDefinition definition(String sql) {
-        return new ConnectorViewDefinition(sql, Optional.empty(), Optional.empty(), List.of(new ViewColumn("x", TypeId.of("integer"), Optional.empty())), Optional.empty(), Optional.empty(), false, List.of());
+        ViewColumn column = new ViewColumn("x", TypeId.of("integer"), Optional.of("column comment"));
+        return new ConnectorViewDefinition(sql, Optional.of("c"), Optional.of("s"), List.of(column), Optional.of("view comment"), Optional.of("owner"), false, List.of(new CatalogSchemaName("c", "p")));
+    }
+
+    // ConnectorViewDefinition and ViewColumn don't implement equals
+    private static List<Object> fields(ConnectorViewDefinition d) {
+        List<Object> columns = d.getColumns().stream().map(c -> (Object) List.of(c.getName(), c.getType(), c.getComment())).toList();
+        return List.of(d.getOriginalSql(), d.getCatalog(), d.getSchema(), columns, d.getComment(), d.getOwner(), d.isRunAsInvoker(), d.getPath());
     }
 
     private static boolean isClosed(Object resource) throws SQLException {
@@ -174,14 +181,16 @@ public class TestViewZooJdbcClient {
             } catch (InvocationTargetException e) {
                 throw e.getCause();
             }
-            return (result instanceof Statement || result instanceof ResultSet) ? track(result, method.getReturnType()) : result;
+            Class<?> returnType = method.getReturnType();
+            boolean trackable = returnType.isInterface() && (Statement.class.isAssignableFrom(returnType) || ResultSet.class.isAssignableFrom(returnType));
+            return (trackable && result != null && !resources.contains(result)) ? track(result, returnType) : result;
         });
     }
 
     private class TrackingJdbcClient extends ViewZooJdbcClient {
 
         TrackingJdbcClient() {
-            super(config, new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false).registerModule(new Jdk8Module()));
+            super(config, ViewZooStorageClientProvider.createObjectMapper());
         }
 
         @Override
