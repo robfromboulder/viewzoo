@@ -57,11 +57,19 @@ public class ViewZooLocalFileSystemClient implements ViewZooStorageClient {
                 log.warn("Skipping file whose name is not a view name Trino can create: %s", f);
                 continue;
             }
+            ConnectorViewDefinition definition;
             try {
-                views.put(new SchemaTableName(name_pieces[0], name_pieces[1]), mapper.readValue(f, ConnectorViewDefinition.class));
+                definition = mapper.readValue(f, ConnectorViewDefinition.class);
             } catch (IOException e) {
-                throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to read file: " + f);
+                log.warn("Skipping file whose contents are not a view definition: %s: %s", f, e.getMessage());
+                continue;
             }
+            // the JSON literal null parses without error
+            if (definition == null) {
+                log.warn("Skipping file whose contents are not a view definition: %s", f);
+                continue;
+            }
+            views.put(new SchemaTableName(name_pieces[0], name_pieces[1]), definition);
         }
         return views;
     }
@@ -75,7 +83,7 @@ public class ViewZooLocalFileSystemClient implements ViewZooStorageClient {
                 throw new TrinoException(ALREADY_EXISTS, "View conflicts with an existing view file in filesystem storage: " + new SchemaTableName(schema, table));
             Files.writeString(path, mapper.writeValueAsString(definition));
         } catch (IOException e) {
-            throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to write file: " + path);
+            throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to write file: " + path + ": " + e.getMessage(), e);
         }
     }
 
@@ -85,7 +93,7 @@ public class ViewZooLocalFileSystemClient implements ViewZooStorageClient {
         try {
             Files.deleteIfExists(path);
         } catch (IOException e) {
-            throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to delete file: " + path);
+            throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to delete file: " + path + ": " + e.getMessage(), e);
         }
     }
 
@@ -96,6 +104,8 @@ public class ViewZooLocalFileSystemClient implements ViewZooStorageClient {
         Path target = viewPath(targetSchema, targetTable);
         // link(2) atomically refuses an existing target, where Files.move only checks before rename(2) replaces it
         try {
+            if (Files.exists(target) && !isExactFile(target))
+                throw new TrinoException(ALREADY_EXISTS, "View conflicts with an existing view file in filesystem storage: " + new SchemaTableName(targetSchema, targetTable));
             Files.createLink(target, source);
         } catch (FileAlreadyExistsException e) {
             throw new TrinoException(ALREADY_EXISTS, "View already exists: " + new SchemaTableName(targetSchema, targetTable), e);
