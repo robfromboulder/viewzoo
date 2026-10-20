@@ -169,9 +169,11 @@ public class TestViewZooLocalFileSystemClient {
 
     @Test
     public void testMalformedFileNamesSkipped() throws IOException {
-        for (String name : List.of("s..json", ".t.json", "a.b.c.json", "x.json")) {
+        for (String name : List.of("s..json", "a.b.c.json", "x.json")) {
             Files.writeString(dir.resolve(name), "not json");
         }
+        // uppercase names load under a lowercased name that drop and replace would miss
+        Files.writeString(dir.resolve("S.U.json"), ViewZooStorageClientProvider.createObjectMapper().writeValueAsString(DEFINITION));
         client.createView("s", "t", DEFINITION);
         assertEquals(newClient().getViews().keySet(), Set.of(new SchemaTableName("s", "t")));
     }
