@@ -128,17 +128,16 @@ public class ViewZooLocalFileSystemClient implements ViewZooStorageClient {
             deleteFile(source);
         } catch (IOException e) {
             TrinoException failure = new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to delete file: " + source + ": " + e.getMessage(), e);
+            // a delete that removed the source despite reporting failure has completed the rename; notExists and exists are
+            // each true only when confirmed, so an unreadable state falls through to the rollback
+            if (Files.notExists(source) && Files.exists(target)) {
+                log.warn("Rename completed despite a failed delete: %s: %s", source, e.getMessage());
+                return;
+            }
             // the target is removed only while it is still a second link to the source, which narrows but can't close the
             // window in which another writer replaces it
             try {
                 if (Files.isSameFile(source, target)) deleteFile(target);
-            } catch (NoSuchFileException missing) {
-                // a delete that removed the source despite reporting failure has completed the rename
-                if (source.toString().equals(missing.getFile())) {
-                    log.warn("Rename completed despite a failed delete: %s: %s", source, e.getMessage());
-                    return;
-                }
-                failure.addSuppressed(missing);
             } catch (IOException rollback) {
                 failure.addSuppressed(rollback);
             }
