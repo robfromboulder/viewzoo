@@ -54,7 +54,7 @@ Integration tests are in the TestNG `integration` group, run only with `-Pintegr
 
 - **Location**: `src/test/docker/` contains docker-compose.yml and Trino catalog configs
 - **Catalogs**: Tests run against `testjdbc` (PostgreSQL storage), `testfs` (filesystem storage inside the Linux container) and `testfsmount` (filesystem storage in `target/testfsmount`, bind-mounted from the host)
-- **Linux filesystems**: File probes run inside the Trino container, so they measure Linux behavior; on a macOS host `testfsmount` is case-insensitive, while on a Linux host both directories are case-sensitive and the case-insensitive path goes unmeasured
+- **Linux filesystems**: File probes run inside the Trino container, so they see each directory exactly as the connector does; `testfsmount` carries the host's filesystem semantics, so it is case-insensitive on a macOS host, while on a Linux host both directories are case-sensitive and the case-insensitive path goes unmeasured
 - **Ports**: Uses non-standard port 7721 for Trino to avoid conflicts; PostgreSQL is internal only
 - **Requirements**: Plugin must be built first with `mvn clean package`
 - **Environment**: Tests set `PROJECT_ROOT` env var to locate the built plugin
