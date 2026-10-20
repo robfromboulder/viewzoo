@@ -5,6 +5,7 @@ package com.github.robfromboulder.viewzoo.storage;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.robfromboulder.viewzoo.config.ViewZooJdbcConfig;
+import io.airlift.log.Logger;
 import io.trino.spi.TrinoException;
 import io.trino.spi.connector.ConnectorViewDefinition;
 import io.trino.spi.connector.SchemaTableName;
@@ -22,9 +23,12 @@ import java.util.Properties;
 
 import static io.trino.spi.StandardErrorCode.ALREADY_EXISTS;
 import static io.trino.spi.StandardErrorCode.GENERIC_INTERNAL_ERROR;
+import static java.util.Locale.ENGLISH;
 import static java.util.Objects.requireNonNull;
 
 public class ViewZooJdbcClient implements ViewZooStorageClient {
+
+    private static final Logger log = Logger.get(ViewZooJdbcClient.class);
 
     // PostgreSQL SQLSTATE for unique_violation
     private static final String UNIQUE_VIOLATION = "23505";
@@ -45,7 +49,7 @@ public class ViewZooJdbcClient implements ViewZooStorageClient {
                 statement.execute();
             }
         } catch (SQLException e) {
-            throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to initialize database" + e.getMessage());
+            throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to initialize database: " + e.getMessage(), e);
         }
     }
 
@@ -67,16 +71,28 @@ public class ViewZooJdbcClient implements ViewZooStorageClient {
                 String schemaName = resultSet.getString("schema");
                 String viewName = resultSet.getString("view_name");
                 String definitionText = resultSet.getString("definition");
-                ConnectorViewDefinition def = mapper.readValue(definitionText, ConnectorViewDefinition.class);
-                views.put(new SchemaTableName(schemaName, viewName), def);
+                if (!isLoadable(schemaName) || !isLoadable(viewName)) {
+                    log.warn("Skipping row whose name is not a view name Trino can create: %s.%s", schemaName, viewName);
+                    continue;
+                }
+                ConnectorViewDefinition definition = null;
+                try {
+                    if (definitionText != null) definition = mapper.readValue(definitionText, ConnectorViewDefinition.class);
+                } catch (JsonProcessingException e) {
+                    log.warn("Skipping row whose definition is not a view definition: %s.%s: %s", schemaName, viewName, e.getMessage());
+                    continue;
+                }
+                // a NULL column and the JSON literal null both leave no definition
+                if (definition == null) {
+                    log.warn("Skipping row whose definition is not a view definition: %s.%s", schemaName, viewName);
+                    continue;
+                }
+                views.put(new SchemaTableName(schemaName, viewName), definition);
             }
             return views;
         } catch (SQLException e) {
-            throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to retrieve view definitions: " + e.getMessage());
-        } catch (JsonProcessingException e) {
-            throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to parse view definitions: " + e.getMessage());
+            throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to retrieve view definitions: " + e.getMessage(), e);
         }
-
     }
 
     @Override
@@ -88,9 +104,9 @@ public class ViewZooJdbcClient implements ViewZooStorageClient {
             statement.setString(3, mapper.writeValueAsString(definition));
             statement.executeUpdate();
         } catch (SQLException e) {
-            throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to insert view definition: " + e.getMessage());
+            throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to insert view definition: " + e.getMessage(), e);
         } catch (JsonProcessingException e) {
-            throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to serialize view definition: " + e.getMessage());
+            throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to serialize view definition: " + e.getMessage(), e);
         }
     }
 
@@ -102,7 +118,7 @@ public class ViewZooJdbcClient implements ViewZooStorageClient {
             statement.setString(2, table);
             statement.executeUpdate();
         } catch (SQLException e) {
-            throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to delete view definition: " + e.getMessage());
+            throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to delete view definition: " + e.getMessage(), e);
         }
     }
 
@@ -119,6 +135,11 @@ public class ViewZooJdbcClient implements ViewZooStorageClient {
             if (UNIQUE_VIOLATION.equals(e.getSQLState())) throw new TrinoException(ALREADY_EXISTS, "View already exists: " + new SchemaTableName(targetSchema, targetTable), e);
             throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to rename view definition: " + e.getMessage(), e);
         }
+    }
+
+    // Trino lowercases identifiers, so any other name would load as a view whose operations miss its row
+    private static boolean isLoadable(String name) {
+        return name != null && !name.isEmpty() && name.equals(name.toLowerCase(ENGLISH));
     }
 
 }
