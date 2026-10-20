@@ -90,13 +90,17 @@ public class ViewZooJdbcClient implements ViewZooStorageClient {
 
     @Override
     public void createView(String schema, String table, ConnectorViewDefinition definition, boolean replace) {
+        String sql = replace
+                ? "INSERT INTO viewzoo VALUES (?, ?, ?) on conflict (schema, view_name) do update set definition = EXCLUDED.definition"
+                : "INSERT INTO viewzoo VALUES (?, ?, ?)";
         try (Connection connection = getConnection();
-             PreparedStatement statement = connection.prepareStatement("INSERT INTO viewzoo VALUES (?, ?, ?) on conflict (schema, view_name) do update set definition = EXCLUDED.definition")) {
+             PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, schema);
             statement.setString(2, table);
             statement.setString(3, mapper.writeValueAsString(definition));
             statement.executeUpdate();
         } catch (SQLException e) {
+            if (UNIQUE_VIOLATION.equals(e.getSQLState())) throw new TrinoException(ALREADY_EXISTS, "View already exists: " + new SchemaTableName(schema, table), e);
             throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to insert view definition: " + e.getMessage(), e);
         } catch (JsonProcessingException e) {
             throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to serialize view definition: " + e.getMessage(), e);

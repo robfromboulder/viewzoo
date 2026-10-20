@@ -20,6 +20,7 @@ import java.nio.file.Path;
 import java.text.Normalizer;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Stream;
 
 import static com.github.robfromboulder.viewzoo.storage.ViewZooStorageClient.isLoadable;
@@ -28,6 +29,7 @@ import static io.trino.spi.StandardErrorCode.CONFIGURATION_INVALID;
 import static io.trino.spi.StandardErrorCode.GENERIC_INTERNAL_ERROR;
 import static io.trino.spi.StandardErrorCode.INVALID_ARGUMENTS;
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
 import static java.util.Objects.requireNonNull;
 
 public class ViewZooLocalFileSystemClient implements ViewZooStorageClient {
@@ -71,10 +73,28 @@ public class ViewZooLocalFileSystemClient implements ViewZooStorageClient {
         validateName(schema, table);
         Path path = viewPath(schema, table);
         requireNoConflictingFile(path, schema, table);
+        // written whole beside the view's file, so a failed write never truncates it; link(2) refuses an existing target
+        // atomically, as in renameView
+        Path temp = dir.toPath().resolve(".viewzoo-" + UUID.randomUUID() + ".tmp");
         try {
-            Files.writeString(path, mapper.writeValueAsString(definition));
+            Files.writeString(temp, mapper.writeValueAsString(definition));
+            if (replace) Files.move(temp, path, ATOMIC_MOVE);
+            else Files.createLink(path, temp);
+        } catch (FileAlreadyExistsException e) {
+            throw new TrinoException(ALREADY_EXISTS, "View already exists: " + new SchemaTableName(schema, table), e);
         } catch (IOException e) {
             throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to write file: " + path + ": " + e.getMessage(), e);
+        } finally {
+            deleteTempFile(temp);
+        }
+    }
+
+    // logs rather than throws, since throwing after the link would report a completed create as failed
+    private static void deleteTempFile(Path temp) {
+        try {
+            Files.deleteIfExists(temp);
+        } catch (IOException e) {
+            log.warn("Failed to delete temp file: %s: %s", temp, e.getMessage());
         }
     }
 
