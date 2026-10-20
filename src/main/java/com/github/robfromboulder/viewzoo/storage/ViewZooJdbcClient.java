@@ -45,7 +45,7 @@ public class ViewZooJdbcClient implements ViewZooStorageClient {
                 statement.execute();
             }
         } catch (SQLException e) {
-            throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to initialize database" + e.getMessage());
+            throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to initialize database: " + e.getMessage(), e);
         }
     }
 

@@ -27,11 +27,16 @@ public class ViewZooStorageClientProvider implements Provider<ViewZooStorageClie
     private final ViewZooJdbcConfig jdbcConfig;
     private final ViewZooFilesystemConfig filesystemConfig;
 
-    @Override
-    public ViewZooStorageClient get() {
+    static ObjectMapper createObjectMapper() {
         ObjectMapper mapper = new ObjectMapper();
         mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         mapper.registerModule(new Jdk8Module());
+        return mapper;
+    }
+
+    @Override
+    public ViewZooStorageClient get() {
+        ObjectMapper mapper = createObjectMapper();
         return switch (config.getStorageType().toLowerCase()) {
             case "jdbc" -> new ViewZooJdbcClient(jdbcConfig, mapper);
             case "filesystem" -> new ViewZooLocalFileSystemClient(filesystemConfig, mapper);
