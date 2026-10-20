@@ -47,7 +47,7 @@ public class ViewZooMetadata implements ConnectorMetadata {
     public synchronized void createView(ConnectorSession session, SchemaTableName stn, ConnectorViewDefinition definition, Map<String, Object> viewProperties, boolean replace) {
         validateName(stn);
         if (!replace && views.containsKey(stn)) throw new TrinoException(ALREADY_EXISTS, "View already exists: " + stn);
-        storageClient.createView(stn.getSchemaName(), stn.getTableName(), definition);
+        storageClient.createView(stn.getSchemaName(), stn.getTableName(), definition, replace);
         views.put(stn, definition);
     }
 

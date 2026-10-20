@@ -19,8 +19,10 @@ import org.testng.annotations.Test;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Stream;
@@ -88,8 +90,8 @@ public class TestViewZooLocalFileSystemClient {
 
     @Test(dataProvider = "portableNames")
     public void testNameRoundTrips(String name) {
-        client.createView(name, "t", DEFINITION);
-        client.createView("s", name, DEFINITION);
+        client.createView(name, "t", DEFINITION, false);
+        client.createView("s", name, DEFINITION, false);
         assertEquals(newClient().getViews().keySet(), Set.of(new SchemaTableName(name, "t"), new SchemaTableName("s", name)));
 
         client.renameView(name, "t", name, "u");
@@ -103,22 +105,22 @@ public class TestViewZooLocalFileSystemClient {
 
     @Test
     public void testSlashInNameRejected() throws IOException {
-        assertRejected(() -> client.createView("a/b", "t", DEFINITION));
-        assertRejected(() -> client.createView("s", "a/b", DEFINITION));
+        assertRejected(() -> client.createView("a/b", "t", DEFINITION, false));
+        assertRejected(() -> client.createView("s", "a/b", DEFINITION, false));
         assertEquals(files(), Set.of());
     }
 
     @Test
     public void testSlashInNameRejectedWithExistingSubdirectory() throws IOException {
         Files.createDirectory(dir.resolve("a"));
-        assertRejected(() -> client.createView("a/b", "t", DEFINITION));
+        assertRejected(() -> client.createView("a/b", "t", DEFINITION, false));
         assertEquals(files(), Set.of());
     }
 
     @Test
     public void testAbsoluteSchemaRejected() throws IOException {
         Path other = Files.createDirectory(root.resolve("other"));
-        assertRejected(() -> client.createView(other + "/x", "t", DEFINITION));
+        assertRejected(() -> client.createView(other + "/x", "t", DEFINITION, false));
         assertEquals(files(), Set.of());
     }
 
@@ -134,17 +136,17 @@ public class TestViewZooLocalFileSystemClient {
     @Test
     public void testNonNfcNameRejected() throws IOException {
         // "cafe" plus a combining acute accent is the NFD form of "café"
-        assertRejected(() -> client.createView("cafe\u0301", "t", DEFINITION));
-        assertRejected(() -> client.createView("s", "cafe\u0301", DEFINITION));
-        client.createView("s", "source", DEFINITION);
+        assertRejected(() -> client.createView("cafe\u0301", "t", DEFINITION, false));
+        assertRejected(() -> client.createView("s", "cafe\u0301", DEFINITION, false));
+        client.createView("s", "source", DEFINITION, false);
         assertRejected(() -> client.renameView("s", "source", "s", "cafe\u0301"));
         assertEquals(files(), Set.of("views/s.source.json"));
     }
 
     @Test
     public void testNulInNameRejected() throws IOException {
-        assertRejected(() -> client.createView("a\u0000b", "t", DEFINITION));
-        assertRejected(() -> client.createView("s", "a\u0000b", DEFINITION));
+        assertRejected(() -> client.createView("a\u0000b", "t", DEFINITION, false));
+        assertRejected(() -> client.createView("s", "a\u0000b", DEFINITION, false));
         assertEquals(files(), Set.of());
     }
 
@@ -152,9 +154,9 @@ public class TestViewZooLocalFileSystemClient {
     public void testCaseInsensitiveCollisionRejected() throws IOException {
         Files.writeString(dir.resolve("S.T.json"), "other");
         if (!Files.exists(dir.resolve("s.t.json"))) throw new SkipException("filesystem is case-sensitive");
-        TrinoException e = expectThrows(TrinoException.class, () -> client.createView("s", "t", DEFINITION));
+        TrinoException e = expectThrows(TrinoException.class, () -> client.createView("s", "t", DEFINITION, false));
         assertEquals(e.getErrorCode(), ALREADY_EXISTS.toErrorCode());
-        client.createView("s", "source", DEFINITION);
+        client.createView("s", "source", DEFINITION, false);
         e = expectThrows(TrinoException.class, () -> client.renameView("s", "source", "s", "t"));
         assertEquals(e.getErrorCode(), ALREADY_EXISTS.toErrorCode());
         assertEquals(e.getMessage(), "View conflicts with an existing view file in filesystem storage: s.t");
@@ -164,9 +166,39 @@ public class TestViewZooLocalFileSystemClient {
 
     @Test
     public void testReplaceView() throws IOException {
-        client.createView("s", "t", DEFINITION);
-        client.createView("s", "t", DEFINITION);
+        Files.writeString(dir.resolve("s.t.json"), "old");
+        client.createView("s", "t", DEFINITION, true);
+        assertEquals(newClient().getViews().keySet(), Set.of(new SchemaTableName("s", "t")));
         assertEquals(files(), Set.of("views/s.t.json"));
+    }
+
+    @Test
+    public void testCreateDoesNotOverwriteExistingFile() throws IOException {
+        Files.writeString(dir.resolve("s.t.json"), "other");
+        TrinoException e = expectThrows(TrinoException.class, () -> client.createView("s", "t", DEFINITION, false));
+        assertEquals(e.getErrorCode(), ALREADY_EXISTS.toErrorCode());
+        assertEquals(Files.readString(dir.resolve("s.t.json")), "other");
+        assertEquals(files(), Set.of("views/s.t.json"));
+    }
+
+    // a write that fails partway must leave the old file whole, so the write can't go to the view's own file
+    @Test
+    public void testReplaceDoesNotWriteInPlace() throws IOException {
+        Files.writeString(dir.resolve("s.t.json"), "old");
+        Files.setPosixFilePermissions(dir, PosixFilePermissions.fromString("r-xr-xr-x"));
+        try {
+            if (Files.isWritable(dir)) throw new SkipException("running as a user who ignores permissions");
+            expectThrows(TrinoException.class, () -> client.createView("s", "t", DEFINITION, true));
+            assertEquals(Files.readString(dir.resolve("s.t.json")), "old");
+        } finally {
+            Files.setPosixFilePermissions(dir, PosixFilePermissions.fromString("rwxr-xr-x"));
+        }
+    }
+
+    @Test
+    public void testTempFileNotLoaded() throws IOException {
+        Files.writeString(dir.resolve(".viewzoo-0.tmp"), ViewZooStorageClientProvider.createObjectMapper().writeValueAsString(DEFINITION));
+        assertEquals(newClient().getViews(), Map.of());
     }
 
     @Test
@@ -176,7 +208,7 @@ public class TestViewZooLocalFileSystemClient {
         }
         // uppercase names load under a lowercased name that drop and replace would miss
         Files.writeString(dir.resolve("S.U.json"), ViewZooStorageClientProvider.createObjectMapper().writeValueAsString(DEFINITION));
-        client.createView("s", "t", DEFINITION);
+        client.createView("s", "t", DEFINITION, false);
         assertEquals(newClient().getViews().keySet(), Set.of(new SchemaTableName("s", "t")));
     }
 
@@ -188,14 +220,14 @@ public class TestViewZooLocalFileSystemClient {
     @Test(dataProvider = "unreadableContents")
     public void testUnreadableFileSkipped(String contents) throws IOException {
         Files.writeString(dir.resolve("s.bad.json"), contents);
-        client.createView("s", "t", DEFINITION);
+        client.createView("s", "t", DEFINITION, false);
         assertEquals(newClient().getViews().keySet(), Set.of(new SchemaTableName("s", "t")));
     }
 
     @Test
     public void testDirectoryWithViewFileNameSkipped() throws IOException {
         Files.createDirectory(dir.resolve("s.bad.json"));
-        client.createView("s", "t", DEFINITION);
+        client.createView("s", "t", DEFINITION, false);
         assertEquals(newClient().getViews().keySet(), Set.of(new SchemaTableName("s", "t")));
     }
 
@@ -208,8 +240,9 @@ public class TestViewZooLocalFileSystemClient {
 
     @Test
     public void testCreateFailureKeepsCause() throws IOException {
-        Files.createDirectory(dir.resolve("s.t.json"));
-        assertKeepsCause(expectThrows(TrinoException.class, () -> client.createView("s", "t", DEFINITION)));
+        Files.writeString(Files.createDirectory(dir.resolve("s.t.json")).resolve("child"), "child");
+        assertKeepsCause(expectThrows(TrinoException.class, () -> client.createView("s", "t", DEFINITION, true)));
+        assertEquals(files(), Set.of("views/s.t.json/child"));
     }
 
     @Test
@@ -221,17 +254,17 @@ public class TestViewZooLocalFileSystemClient {
     @Test
     public void testFileNameByteLimit() throws IOException {
         // "s." + table + ".json" at exactly 255 bytes is the longest filename Linux allows
-        client.createView("s", "x".repeat(248), DEFINITION);
+        client.createView("s", "x".repeat(248), DEFINITION, false);
         assertEquals(newClient().getViews().keySet(), Set.of(new SchemaTableName("s", "x".repeat(248))));
         // 84 three-byte characters make a 259-byte filename, which macOS accepts but Linux does not
-        assertRejected(() -> client.createView("s", "日".repeat(84), DEFINITION));
-        assertRejected(() -> client.createView("日".repeat(84), "t", DEFINITION));
+        assertRejected(() -> client.createView("s", "日".repeat(84), DEFINITION, false));
+        assertRejected(() -> client.createView("日".repeat(84), "t", DEFINITION, false));
         assertEquals(files(), Set.of("views/s." + "x".repeat(248) + ".json"));
     }
 
     @Test
     public void testRenameToRejectedNameKeepsSource() throws IOException {
-        client.createView("s", "source", DEFINITION);
+        client.createView("s", "source", DEFINITION, false);
         assertRejected(() -> client.renameView("s", "source", "s", "a/b"));
         assertRejected(() -> client.renameView("s", "source", "a/b", "t"));
         assertRejected(() -> client.renameView("s", "source", "s", "a\u0000b"));

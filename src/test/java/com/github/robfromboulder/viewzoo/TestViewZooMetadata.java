@@ -56,6 +56,20 @@ public class TestViewZooMetadata {
     }
 
     @Test
+    public void testReplacePassedToStorage() {
+        metadata.createView(null, SOURCE, DEFINITION, Map.of(), true);
+        assertEquals(storage.creates, List.of("s.source replace"));
+    }
+
+    // a view added to storage after the cache loaded, e.g. by another coordinator
+    @Test
+    public void testCreateRefusedByStorage() {
+        storage.views.put(TARGET, DEFINITION);
+        assertErrorCode(() -> metadata.createView(null, TARGET, DEFINITION, Map.of(), false), ALREADY_EXISTS.toErrorCode().getCode());
+        assertEquals(metadata.getView(null, TARGET), Optional.empty());
+    }
+
+    @Test
     public void testCreateInvalidName() {
         assertErrorCode(() -> metadata.createView(null, new SchemaTableName("s", "invalid.table"), DEFINITION, Map.of(), false), INVALID_ARGUMENTS.toErrorCode().getCode());
         assertTrue(storage.creates.isEmpty());
@@ -157,9 +171,12 @@ public class TestViewZooMetadata {
         }
 
         @Override
-        public void createView(String schema, String table, ConnectorViewDefinition definition) {
+        public void createView(String schema, String table, ConnectorViewDefinition definition, boolean replace) {
             if (failWrites) throw new TrinoException(GENERIC_INTERNAL_ERROR, "Simulated storage failure");
-            creates.add(schema + "." + table);
+            SchemaTableName stn = new SchemaTableName(schema, table);
+            if (!replace && views.containsKey(stn)) throw new TrinoException(ALREADY_EXISTS, "View already exists: " + stn);
+            views.put(stn, definition);
+            creates.add(stn + (replace ? " replace" : ""));
         }
 
         @Override
