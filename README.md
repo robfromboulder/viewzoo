@@ -74,7 +74,7 @@ cd $TRINO_HOME && bash bin/launcher run
 > Replace `/path/to/viewzoo.dir` with your actual `viewzoo.dir` path. If this returns mount information showing a `Source` outside the container, your views are safely persisted. If it returns nothing or shows no external `Source`, your views will be lost on container upgrade.
 
 > [!NOTE]
-> Filesystem storage supports Linux and macOS. Each view is stored as a `schema.table.json` file, so it rejects schema or table names containing `/` or a NUL character, and names whose file name would exceed 255 bytes in UTF-8. JDBC storage has none of these limits.
+> Filesystem storage supports Linux and macOS. Each view is stored as a `schema.table.json` file, so it rejects schema or table names containing `/` or a NUL character, names not in Unicode NFC form, and names whose file name would exceed 255 bytes in UTF-8. JDBC storage rejects only names containing a NUL character.
 
 > [!TIP]
 > Filesystem storage enables a unique collaboration pattern: teams can share view definitions through git without requiring a traditional database or network file share. By storing views as JSON files in a version-controlled directory, view definitions become part of your application's source code, with full revision history, pull request reviews, and branch-based development. This approach is particularly valuable for development environments, CI/CD pipelines, and scenarios where you need view definitions to be as portable and reviewable as your application code itself.

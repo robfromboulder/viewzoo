@@ -120,6 +120,25 @@ public class TestViewZooLocalFileSystemClient {
         assertEquals(files(), Set.of());
     }
 
+    // dropView and the rename source skip name validation, so only the path containment check protects them
+    @Test
+    public void testPathOutsideDirRejected() throws IOException {
+        Files.writeString(root.resolve("x.t.json"), "outside");
+        assertRejected(() -> client.dropView("../x", "t"));
+        assertRejected(() -> client.renameView("../x", "t", "s", "t"));
+        assertEquals(files(), Set.of("x.t.json"));
+    }
+
+    @Test
+    public void testNonNfcNameRejected() throws IOException {
+        // "cafe" plus a combining acute accent is the NFD form of "café"
+        assertRejected(() -> client.createView("cafe\u0301", "t", DEFINITION));
+        assertRejected(() -> client.createView("s", "cafe\u0301", DEFINITION));
+        client.createView("s", "source", DEFINITION);
+        assertRejected(() -> client.renameView("s", "source", "s", "cafe\u0301"));
+        assertEquals(files(), Set.of("views/s.source.json"));
+    }
+
     @Test
     public void testNulInNameRejected() throws IOException {
         assertRejected(() -> client.createView("a\u0000b", "t", DEFINITION));

@@ -16,6 +16,7 @@ import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.text.Normalizer;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -103,11 +104,12 @@ public class ViewZooLocalFileSystemClient implements ViewZooStorageClient {
         }
     }
 
-    // '/' and NUL are the only characters Linux and macOS forbid in a filename
+    // '/' and NUL are the only characters Linux and macOS forbid in a filename; macOS filesystems ignore normalization
+    // differences, so only NFC names are accepted to keep distinct views from sharing one file
     private static void validateName(String schema, String table) {
-        if (schema.indexOf('/') >= 0 || schema.indexOf('\0') >= 0) {
+        if (schema.indexOf('/') >= 0 || schema.indexOf('\0') >= 0 || !Normalizer.isNormalized(schema, Normalizer.Form.NFC)) {
             throw new TrinoException(INVALID_ARGUMENTS, "Schema name not supported by filesystem storage: " + schema);
-        } else if (table.indexOf('/') >= 0 || table.indexOf('\0') >= 0) {
+        } else if (table.indexOf('/') >= 0 || table.indexOf('\0') >= 0 || !Normalizer.isNormalized(table, Normalizer.Form.NFC)) {
             throw new TrinoException(INVALID_ARGUMENTS, "Table name not supported by filesystem storage: " + table);
         } else if (fileName(schema, table).getBytes(UTF_8).length > MAX_FILE_NAME_BYTES) {
             throw new TrinoException(INVALID_ARGUMENTS, "View name too long for filesystem storage: " + new SchemaTableName(schema, table));
