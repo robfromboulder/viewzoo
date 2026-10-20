@@ -26,6 +26,7 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 import static io.trino.spi.StandardErrorCode.ALREADY_EXISTS;
+import static io.trino.spi.StandardErrorCode.CONFIGURATION_INVALID;
 import static io.trino.spi.StandardErrorCode.INVALID_ARGUMENTS;
 import static java.util.stream.Collectors.toSet;
 import static org.testng.Assert.assertEquals;
@@ -156,6 +157,7 @@ public class TestViewZooLocalFileSystemClient {
         client.createView("s", "source", DEFINITION);
         e = expectThrows(TrinoException.class, () -> client.renameView("s", "source", "s", "t"));
         assertEquals(e.getErrorCode(), ALREADY_EXISTS.toErrorCode());
+        assertEquals(e.getMessage(), "View conflicts with an existing view file in filesystem storage: s.t");
         assertEquals(Files.readString(dir.resolve("S.T.json")), "other");
         assertEquals(files(), Set.of("views/S.T.json", "views/s.source.json"));
     }
@@ -176,6 +178,44 @@ public class TestViewZooLocalFileSystemClient {
         Files.writeString(dir.resolve("S.U.json"), ViewZooStorageClientProvider.createObjectMapper().writeValueAsString(DEFINITION));
         client.createView("s", "t", DEFINITION);
         assertEquals(newClient().getViews().keySet(), Set.of(new SchemaTableName("s", "t")));
+    }
+
+    @DataProvider
+    public Object[][] unreadableContents() {
+        return new Object[][]{{"not json"}, {""}, {"{\"originalSql\":\"SELECT"}, {"{}"}, {"[]"}, {"null"}};
+    }
+
+    @Test(dataProvider = "unreadableContents")
+    public void testUnreadableFileSkipped(String contents) throws IOException {
+        Files.writeString(dir.resolve("s.bad.json"), contents);
+        client.createView("s", "t", DEFINITION);
+        assertEquals(newClient().getViews().keySet(), Set.of(new SchemaTableName("s", "t")));
+    }
+
+    @Test
+    public void testDirectoryWithViewFileNameSkipped() throws IOException {
+        Files.createDirectory(dir.resolve("s.bad.json"));
+        client.createView("s", "t", DEFINITION);
+        assertEquals(newClient().getViews().keySet(), Set.of(new SchemaTableName("s", "t")));
+    }
+
+    @Test
+    public void testMissingDirectoryFailsLoad() throws IOException {
+        Files.delete(dir);
+        TrinoException e = expectThrows(TrinoException.class, () -> client.getViews());
+        assertEquals(e.getErrorCode(), CONFIGURATION_INVALID.toErrorCode());
+    }
+
+    @Test
+    public void testCreateFailureKeepsCause() throws IOException {
+        Files.createDirectory(dir.resolve("s.t.json"));
+        assertKeepsCause(expectThrows(TrinoException.class, () -> client.createView("s", "t", DEFINITION)));
+    }
+
+    @Test
+    public void testDropFailureKeepsCause() throws IOException {
+        Files.writeString(Files.createDirectory(dir.resolve("s.t.json")).resolve("child"), "child");
+        assertKeepsCause(expectThrows(TrinoException.class, () -> client.dropView("s", "t")));
     }
 
     @Test
@@ -202,6 +242,11 @@ public class TestViewZooLocalFileSystemClient {
     private static void assertRejected(ThrowingRunnable runnable) {
         TrinoException e = expectThrows(TrinoException.class, runnable);
         assertEquals(e.getErrorCode(), INVALID_ARGUMENTS.toErrorCode());
+    }
+
+    private static void assertKeepsCause(TrinoException e) {
+        assertTrue(e.getCause() instanceof IOException, "Expected an IOException cause: " + e.getCause());
+        assertTrue(e.getMessage().endsWith(": " + e.getCause().getMessage()), "Expected the cause's message: " + e.getMessage());
     }
 
     private ViewZooLocalFileSystemClient newClient() {

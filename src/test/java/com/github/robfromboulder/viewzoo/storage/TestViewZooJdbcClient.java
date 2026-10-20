@@ -14,12 +14,14 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Proxy;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -140,10 +142,64 @@ public class TestViewZooJdbcClient {
 
     @Test(groups = "integration")
     public void testClosesResourcesOnParseFailure() throws SQLException {
-        executeSql("INSERT INTO viewzoo VALUES ('s', 'source', 'not json')");
-        expectThrows(TrinoException.class, () -> client.getViews());
+        insertRow("s", "source", "not json");
+        assertEquals(client.getViews(), Map.of());
         assertTrue(resources.stream().anyMatch(ResultSet.class::isInstance));
         for (Object resource : resources) assertTrue(isClosed(resource), "Not closed: " + resource);
+    }
+
+    @DataProvider
+    public Object[][] unreadableDefinitions() {
+        return new Object[][]{{"not json"}, {null}, {"null"}, {"{}"}};
+    }
+
+    @Test(groups = "integration", dataProvider = "unreadableDefinitions")
+    public void testUnreadableRowSkipped(String definition) throws SQLException {
+        client.createView("s", "source", definition("SELECT 1 AS x"));
+        insertRow("s", "bad", definition);
+        assertStored(Map.of(SOURCE, "SELECT 1 AS x"));
+    }
+
+    @DataProvider
+    public Object[][] unloadableNames() {
+        return new Object[][]{{"", "source"}, {"s", ""}, {"S", "source"}, {"s", "Source"}};
+    }
+
+    // an uppercase row would load under the lowercase name of the view beside it
+    @Test(groups = "integration", dataProvider = "unloadableNames")
+    public void testUnloadableNameSkipped(String schema, String view) throws Exception {
+        client.createView("s", "source", definition("SELECT 1 AS x"));
+        insertRow(schema, view, ViewZooStorageClientProvider.createObjectMapper().writeValueAsString(definition("SELECT 2 AS x")));
+        assertStored(Map.of(SOURCE, "SELECT 1 AS x"));
+    }
+
+    @Test(groups = "integration")
+    public void testStorageFailuresKeepCause() throws SQLException {
+        executeSql("DROP TABLE viewzoo");
+        assertKeepsCause(expectThrows(TrinoException.class, () -> client.getViews()));
+        assertKeepsCause(expectThrows(TrinoException.class, () -> client.createView("s", "source", definition("SELECT 1 AS x"))));
+        assertKeepsCause(expectThrows(TrinoException.class, () -> client.dropView("s", "source")));
+    }
+
+    @Test(groups = "integration")
+    public void testConstructorFailureKeepsCause() {
+        ViewZooJdbcConfig wrongPassword = new ViewZooJdbcConfig().setJdbcUrl(postgres.getJdbcUrl()).setJdbcUser(postgres.getUsername()).setJdbcPassword("wrong");
+        assertKeepsCause(expectThrows(TrinoException.class, () -> new ViewZooJdbcClient(wrongPassword, ViewZooStorageClientProvider.createObjectMapper())));
+    }
+
+    private static void assertKeepsCause(TrinoException e) {
+        assertTrue(e.getCause() instanceof SQLException, "Expected a SQLException cause: " + e.getCause());
+        assertTrue(e.getMessage().endsWith(": " + e.getCause().getMessage()), "Expected the cause's message: " + e.getMessage());
+    }
+
+    private void insertRow(String schema, String view, String definition) throws SQLException {
+        try (Connection connection = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
+             PreparedStatement statement = connection.prepareStatement("INSERT INTO viewzoo VALUES (?, ?, ?)")) {
+            statement.setString(1, schema);
+            statement.setString(2, view);
+            statement.setString(3, definition);
+            statement.executeUpdate();
+        }
     }
 
     private void executeSql(String sql) throws SQLException {
