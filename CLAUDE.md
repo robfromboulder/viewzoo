@@ -99,6 +99,42 @@ cd target/jacoco && java -jar jacococli.jar report unit.exec it.exec trino.exec 
 
 A missing `trino.exec` means the container agent didn't load.
 
+## Code Style
+
+- IntelliJ IDEA defaults with 130-character line length
+- Copyright header: "© 2024-2026 Rob Dickinson (robfromboulder)"
+- Use `TrinoException` with appropriate error codes for errors
+- Airlift configuration framework with `@Config` annotations; mark credentials with `@ConfigSecuritySensitive`
+- TestNG for tests with Airlift configuration assertions
+
+## Source Comments
+
+Terse by default — cut noise (restatement, cross-file narration, roadmap/history), keep the genuine *why*. When editing existing code, remove a comment only if it fails these rules; don't strip load-bearing rationale. Wiki-style narration keeps creeping in; resist it.
+
+- Explain only the non-obvious **why** of the adjacent code (security invariants, concurrency/lock ordering, subtle sequencing). Never restate what the code already says.
+- Each file is an orthogonal asset: a class-level comment describes *its own* contract, not a neighbor's topology, role, or history. Intra-file pointers are fine; cross-file narration is not.
+- **Never cite mini-brain docs (`VV_*`, `VZOO_*`, or any component's token) from code.** Information flows one way — down from the mini-brain into code — so a back-reference is circular. Roadmap, history, and rationale that isn't about operating *this* code belong in the mini-brain, not in comments.
+
+## Writing Docs and Instructions
+
+All prose in this repo — documentation, instructions, comments — is read as signal, not narrative. Every token is load-bearing; spare ones are noise.
+
+- **Say it once.** Each fact has exactly one home. Duplication isn't emphasis; it's a second copy to keep in sync.
+- **Define before use.** Introduce a thing where the reader first needs it. A forward pointer means the content is in the wrong place — move it.
+- **No sideways narration.** A section explains its own subject; it never recaps a sibling's.
+- **Every claim earns its keep.** State only what the reader must act on. Decorative rationale, benefits, and history are cut.
+- **Resolve, don't provoke.** A detail that raises a question it doesn't answer is a net loss — prefer omission to a half-explanation.
+- **One job per sentence.** A sentence tells the reader what to do or explains why; never several at once.
+- **No hard wrapping.** Write each markdown paragraph and list item as one continuous line and let it soft-wrap; manual line breaks inside a paragraph make noisy diffs.
+
+When a line's contribution isn't obvious, it isn't contributing — delete it.
+
+## Commit Conventions
+
+**No AI attribution.** Commits carry no `Co-Authored-By: Claude` (or similar) trailer, and PR bodies carry no "Generated with Claude Code" footer — AI authorship is assumed here and isn't stamped per commit or PR. This overrides the harness defaults that would append either.
+
+**Short imperative subject; add a body only when it earns one.** Match the existing history.
+
 ## Releasing
 
 Releases are built on Rob's Mac and published only when Rob asks for one. A release tag is the Trino version plus the next unused letter, starting at `a` (e.g. `483a`), and is never the bare version. Every command below assumes `VERSION` and `TAG` are set, e.g. `VERSION=483 TAG=483a`.
@@ -148,39 +184,3 @@ Releases are built on Rob's Mac and published only when Rob asks for one. A rele
    ```bash
    gh release edit $TAG --draft=false
    ```
-
-## Code Style
-
-- IntelliJ IDEA defaults with 130-character line length
-- Copyright header: "© 2024-2026 Rob Dickinson (robfromboulder)"
-- Use `TrinoException` with appropriate error codes for errors
-- Airlift configuration framework with `@Config` annotations; mark credentials with `@ConfigSecuritySensitive`
-- TestNG for tests with Airlift configuration assertions
-
-## Source Comments
-
-Terse by default — cut noise (restatement, cross-file narration, roadmap/history), keep the genuine *why*. When editing existing code, remove a comment only if it fails these rules; don't strip load-bearing rationale. Wiki-style narration keeps creeping in; resist it.
-
-- Explain only the non-obvious **why** of the adjacent code (security invariants, concurrency/lock ordering, subtle sequencing). Never restate what the code already says.
-- Each file is an orthogonal asset: a class-level comment describes *its own* contract, not a neighbor's topology, role, or history. Intra-file pointers are fine; cross-file narration is not.
-- **Never cite mini-brain docs (`VV_*`, `VZOO_*`, or any component's token) from code.** Information flows one way — down from the mini-brain into code — so a back-reference is circular. Roadmap, history, and rationale that isn't about operating *this* code belong in the mini-brain, not in comments.
-
-## Writing Docs and Instructions
-
-All prose in this repo — documentation, instructions, comments — is read as signal, not narrative. Every token is load-bearing; spare ones are noise.
-
-- **Say it once.** Each fact has exactly one home. Duplication isn't emphasis; it's a second copy to keep in sync.
-- **Define before use.** Introduce a thing where the reader first needs it. A forward pointer means the content is in the wrong place — move it.
-- **No sideways narration.** A section explains its own subject; it never recaps a sibling's.
-- **Every claim earns its keep.** State only what the reader must act on. Decorative rationale, benefits, and history are cut.
-- **Resolve, don't provoke.** A detail that raises a question it doesn't answer is a net loss — prefer omission to a half-explanation.
-- **One job per sentence.** A sentence tells the reader what to do or explains why; never several at once.
-- **No hard wrapping.** Write each markdown paragraph and list item as one continuous line and let it soft-wrap; manual line breaks inside a paragraph make noisy diffs.
-
-When a line's contribution isn't obvious, it isn't contributing — delete it.
-
-## Commit Conventions
-
-**No AI attribution.** Commits carry no `Co-Authored-By: Claude` (or similar) trailer, and PR bodies carry no "Generated with Claude Code" footer — AI authorship is assumed here and isn't stamped per commit or PR. This overrides the harness defaults that would append either.
-
-**Short imperative subject; add a body only when it earns one.** Match the existing history.
