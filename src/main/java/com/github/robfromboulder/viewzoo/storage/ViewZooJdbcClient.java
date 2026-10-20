@@ -45,7 +45,7 @@ public class ViewZooJdbcClient implements ViewZooStorageClient {
                 statement.execute();
             }
         } catch (SQLException e) {
-            throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to initialize database: " + e.getMessage(), e);
+            throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to initialize database" + e.getMessage());
         }
     }
 
@@ -72,9 +72,9 @@ public class ViewZooJdbcClient implements ViewZooStorageClient {
             }
             return views;
         } catch (SQLException e) {
-            throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to retrieve view definitions: " + e.getMessage(), e);
+            throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to retrieve view definitions: " + e.getMessage());
         } catch (JsonProcessingException e) {
-            throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to parse view definitions: " + e.getMessage(), e);
+            throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to parse view definitions: " + e.getMessage());
         }
 
     }
@@ -88,9 +88,9 @@ public class ViewZooJdbcClient implements ViewZooStorageClient {
             statement.setString(3, mapper.writeValueAsString(definition));
             statement.executeUpdate();
         } catch (SQLException e) {
-            throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to insert view definition: " + e.getMessage(), e);
+            throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to insert view definition: " + e.getMessage());
         } catch (JsonProcessingException e) {
-            throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to serialize view definition: " + e.getMessage(), e);
+            throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to serialize view definition: " + e.getMessage());
         }
     }
 
@@ -102,7 +102,7 @@ public class ViewZooJdbcClient implements ViewZooStorageClient {
             statement.setString(2, table);
             statement.executeUpdate();
         } catch (SQLException e) {
-            throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to delete view definition: " + e.getMessage(), e);
+            throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to delete view definition: " + e.getMessage());
         }
     }
 
