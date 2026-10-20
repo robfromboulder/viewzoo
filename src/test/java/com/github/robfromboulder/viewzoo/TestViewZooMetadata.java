@@ -17,11 +17,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import static io.trino.spi.StandardErrorCode.ALREADY_EXISTS;
 import static io.trino.spi.StandardErrorCode.GENERIC_INTERNAL_ERROR;
 import static io.trino.spi.StandardErrorCode.INVALID_ARGUMENTS;
 import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertNotNull;
+import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertThrows;
 import static org.testng.Assert.assertTrue;
 import static org.testng.Assert.expectThrows;
@@ -53,6 +56,26 @@ public class TestViewZooMetadata {
     public void testCreateExistingView() {
         assertErrorCode(() -> metadata.createView(null, SOURCE, DEFINITION, Map.of(), false), ALREADY_EXISTS.toErrorCode().getCode());
         assertTrue(storage.creates.isEmpty());
+    }
+
+    @Test
+    public void testListViews() {
+        metadata.createView(null, TARGET, DEFINITION, Map.of(), false);
+        assertEquals(Set.copyOf(metadata.listViews(null, Optional.empty())), Set.of(SOURCE, TARGET));
+        assertEquals(metadata.listViews(null, Optional.of("s")), List.of(SOURCE));
+        assertEquals(metadata.listViews(null, Optional.of("missing")), List.of());
+        assertEquals(Set.copyOf(metadata.listTables(null, Optional.empty())), Set.of(SOURCE, TARGET));
+        assertEquals(metadata.listTables(null, Optional.of("t")), List.of(TARGET));
+    }
+
+    // the connector holds no tables, so every table lookup comes back empty
+    @Test
+    public void testTableMethods() {
+        assertNull(metadata.getTableHandle(null, SOURCE, Optional.empty(), Optional.empty()));
+        assertNull(metadata.getTableMetadata(null, null));
+        assertNull(metadata.getColumnHandles(null, null));
+        assertNull(metadata.getColumnMetadata(null, null, null));
+        assertNotNull(metadata.getTableProperties(null, null));
     }
 
     @Test
