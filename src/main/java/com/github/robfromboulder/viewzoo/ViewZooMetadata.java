@@ -43,13 +43,13 @@ public class ViewZooMetadata implements ConnectorMetadata {
     }
 
     private final ViewZooStorageClient storageClient;
+    // updated only after storage succeeds, so a storage failure leaves the cache unchanged
     private final Map<SchemaTableName, ConnectorViewDefinition> views;
 
     @Override
     public synchronized void createView(ConnectorSession session, SchemaTableName stn, ConnectorViewDefinition definition, Map<String, Object> viewProperties, boolean replace) {
         validateName(stn);
         if (!replace && views.containsKey(stn)) throw new TrinoException(ALREADY_EXISTS, "View already exists: " + stn);
-        // update storage first so a storage failure leaves the cache unchanged
         storageClient.createView(stn.getSchemaName(), stn.getTableName(), definition);
         views.put(stn, definition);
     }
@@ -57,7 +57,6 @@ public class ViewZooMetadata implements ConnectorMetadata {
     @Override
     public synchronized void dropView(ConnectorSession session, SchemaTableName stn) {
         if (!views.containsKey(stn)) throw new ViewNotFoundException(stn);
-        // update storage first so a storage failure leaves the cache unchanged
         storageClient.dropView(stn.getSchemaName(), stn.getTableName());
         views.remove(stn);
     }
@@ -68,7 +67,6 @@ public class ViewZooMetadata implements ConnectorMetadata {
         ConnectorViewDefinition definition = views.get(source);
         if (definition == null) throw new ViewNotFoundException(source);
         if (views.containsKey(target)) throw new TrinoException(ALREADY_EXISTS, "View already exists: " + target);
-        // update storage first so a storage failure leaves the cache unchanged
         try {
             storageClient.renameView(source.getSchemaName(), source.getTableName(), target.getSchemaName(), target.getTableName());
         } catch (ViewNotFoundException e) {

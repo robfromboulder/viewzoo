@@ -43,6 +43,38 @@ public class TestViewZooMetadata {
     }
 
     @Test
+    public void testCreateView() {
+        metadata.createView(null, TARGET, DEFINITION, Map.of(), false);
+        assertEquals(storage.creates, List.of("t.target"));
+        assertEquals(metadata.getView(null, TARGET), Optional.of(DEFINITION));
+    }
+
+    @Test
+    public void testCreateExistingView() {
+        assertErrorCode(() -> metadata.createView(null, SOURCE, DEFINITION, Map.of(), false), ALREADY_EXISTS.toErrorCode().getCode());
+        assertTrue(storage.creates.isEmpty());
+    }
+
+    @Test
+    public void testCreateInvalidName() {
+        assertErrorCode(() -> metadata.createView(null, new SchemaTableName("s", "invalid.table"), DEFINITION, Map.of(), false), INVALID_ARGUMENTS.toErrorCode().getCode());
+        assertTrue(storage.creates.isEmpty());
+    }
+
+    @Test
+    public void testDropView() {
+        metadata.dropView(null, SOURCE);
+        assertEquals(storage.drops, List.of("s.source"));
+        assertEquals(metadata.getView(null, SOURCE), Optional.empty());
+    }
+
+    @Test
+    public void testDropMissingView() {
+        assertThrows(ViewNotFoundException.class, () -> metadata.dropView(null, new SchemaTableName("s", "missing")));
+        assertTrue(storage.drops.isEmpty());
+    }
+
+    @Test
     public void testRenameView() {
         metadata.renameView(null, SOURCE, TARGET);
         assertEquals(storage.renames, List.of("s.source->t.target"));
@@ -112,6 +144,8 @@ public class TestViewZooMetadata {
     private static class FakeStorageClient implements ViewZooStorageClient {
 
         private final Map<SchemaTableName, ConnectorViewDefinition> views = new HashMap<>();
+        private final List<String> creates = new ArrayList<>();
+        private final List<String> drops = new ArrayList<>();
         private final List<String> renames = new ArrayList<>();
         private boolean failRename;
         private boolean missingOnRename;
@@ -125,11 +159,13 @@ public class TestViewZooMetadata {
         @Override
         public void createView(String schema, String table, ConnectorViewDefinition definition) {
             if (failWrites) throw new TrinoException(GENERIC_INTERNAL_ERROR, "Simulated storage failure");
+            creates.add(schema + "." + table);
         }
 
         @Override
         public void dropView(String schema, String table) {
             if (failWrites) throw new TrinoException(GENERIC_INTERNAL_ERROR, "Simulated storage failure");
+            drops.add(schema + "." + table);
         }
 
         @Override
