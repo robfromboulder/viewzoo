@@ -593,28 +593,31 @@ public class TestViewZooIntegration {
     // the view is written to storage after the cache loaded, as another coordinator or an outside change would
     @Test(groups = "integration", dataProvider = "storages")
     public void testCreateRefusesViewAddedToStorage(String catalog, String dir) throws Exception {
+        String file = (dir == null) ? null : dir + "/behind.v.json";
         try (Connection connection = DriverManager.getConnection(TRINO_JDBC_URL, TRINO_USER, null);
              Statement statement = connection.createStatement()) {
             try {
-                if (dir == null) {
+                if (file == null) {
                     statement.execute("CREATE OR REPLACE VIEW testjdbc.template.v AS SELECT 1 AS x");
                     runPostgres("INSERT INTO viewzoo SELECT 'behind', 'v', definition FROM viewzoo WHERE schema = 'template' AND view_name = 'v'");
                 } else {
-                    writeContainerFile(dir + "/behind.v.json", viewJson(statement, catalog, dir));
+                    writeContainerFile(file, viewJson(statement, catalog, dir));
                 }
-                String stored = storedBehindView(dir);
+                String stored = storedBehindView(file);
                 assertFails(statement, "CREATE VIEW " + catalog + ".behind.v AS SELECT 2 AS x", "already exists");
-                assertEquals(storedBehindView(dir), stored);
+                assertEquals(storedBehindView(file), stored);
             } finally {
-                if (dir == null) runPostgres("DELETE FROM viewzoo WHERE schema = 'behind'");
-                else removeContainerFile(dir + "/behind.v.json");
-                dropViews(statement, catalog + ".template.v");
+                if (file == null) runPostgres("DELETE FROM viewzoo WHERE schema = 'behind'");
+                else removeContainerFile(file);
+                // behind.v is cached only if the create wrongly succeeded
+                dropViews(statement, catalog + ".template.v", catalog + ".behind.v");
             }
         }
     }
 
-    private String storedBehindView(String dir) throws Exception {
-        return (dir == null) ? queryPostgres("SELECT definition FROM viewzoo WHERE schema = 'behind'") : readContainerFile(dir + "/behind.v.json");
+    // the row in testjdbc when file is null
+    private String storedBehindView(String file) throws Exception {
+        return (file == null) ? queryPostgres("SELECT definition FROM viewzoo WHERE schema = 'behind'") : readContainerFile(file);
     }
 
     // information_schema.views reads every definition, so it fails where a listing of names would not
