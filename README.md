@@ -22,9 +22,8 @@ Contents:
 ## Dependencies
 
 * Trino 483
-* Java 25
-* Maven 3.9.8 or higher
 * Postgresql 10 or higher (optional)
+* Java 25 and Maven 3.9.8 or higher (only to build from source)
 
 ## Installation
 
@@ -33,7 +32,13 @@ Download Trino 483, and export `TRINO_HOME` as a shell variable:
 export TRINO_HOME=$HOME/Downloads/trino-483
 ```
 
-Build and install connector:
+Download the zip from the newest 483 release (e.g. `viewzoo-483a.zip`) on the [releases page](https://github.com/robfromboulder/viewzoo/releases), check it against the SHA-256 in the release notes, and install the connector:
+```bash
+shasum -a 256 viewzoo-483a.zip
+rm -rf $TRINO_HOME/plugin/viewzoo && unzip -q viewzoo-483a.zip -d $TRINO_HOME/plugin && mv $TRINO_HOME/plugin/viewzoo-483 $TRINO_HOME/plugin/viewzoo
+```
+
+Or build and install the connector from source:
 ```bash
 mvn clean package && rm -rf $TRINO_HOME/plugin/viewzoo && cp -r ./target/viewzoo-483 $TRINO_HOME/plugin/viewzoo
 ```
