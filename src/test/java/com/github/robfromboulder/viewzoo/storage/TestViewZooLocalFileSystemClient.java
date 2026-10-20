@@ -2,7 +2,6 @@
 
 package com.github.robfromboulder.viewzoo.storage;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.robfromboulder.viewzoo.config.ViewZooFilesystemConfig;
 import io.trino.spi.TrinoException;
 import io.trino.spi.connector.ViewNotFoundException;
@@ -29,7 +28,7 @@ public class TestViewZooLocalFileSystemClient {
     @BeforeMethod
     public void setUp() throws IOException {
         dir = Files.createTempDirectory("viewzoo");
-        client = new ViewZooLocalFileSystemClient(new ViewZooFilesystemConfig().setDir(dir.toString()), new ObjectMapper());
+        client = new ViewZooLocalFileSystemClient(new ViewZooFilesystemConfig().setDir(dir.toString()), ViewZooStorageClientProvider.createObjectMapper());
     }
 
     @AfterMethod(alwaysRun = true)
