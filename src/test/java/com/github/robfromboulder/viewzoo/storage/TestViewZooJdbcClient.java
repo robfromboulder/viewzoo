@@ -198,6 +198,7 @@ public class TestViewZooJdbcClient {
         assertKeepsCause(expectThrows(TrinoException.class, () -> client.getViews()));
         assertKeepsCause(expectThrows(TrinoException.class, () -> client.createView("s", "source", definition("SELECT 1 AS x"), false)));
         assertKeepsCause(expectThrows(TrinoException.class, () -> client.dropView("s", "source")));
+        assertKeepsCause(expectThrows(TrinoException.class, () -> client.renameView("s", "source", "t", "target")));
     }
 
     @Test(groups = "integration")

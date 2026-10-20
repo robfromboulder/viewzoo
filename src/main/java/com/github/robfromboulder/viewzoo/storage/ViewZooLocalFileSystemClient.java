@@ -90,9 +90,9 @@ public class ViewZooLocalFileSystemClient implements ViewZooStorageClient {
     }
 
     // logs rather than throws, since throwing after the link would report a completed create as failed
-    private static void deleteTempFile(Path temp) {
+    private void deleteTempFile(Path temp) {
         try {
-            Files.deleteIfExists(temp);
+            deleteFile(temp);
         } catch (IOException e) {
             log.warn("Failed to delete temp file: %s: %s", temp, e.getMessage());
         }
@@ -125,10 +125,15 @@ public class ViewZooLocalFileSystemClient implements ViewZooStorageClient {
             throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to link file: " + source + " to " + target + ": " + e.getMessage(), e);
         }
         try {
-            Files.delete(source);
+            deleteFile(source);
         } catch (IOException e) {
             throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to delete file: " + source + ": " + e.getMessage(), e);
         }
+    }
+
+    // overridable so tests can fail a delete that follows a link, which needs the same directory permission the link used
+    void deleteFile(Path path) throws IOException {
+        Files.deleteIfExists(path);
     }
 
     private static void validateName(String schema, String table) {

@@ -19,17 +19,21 @@ import org.testng.annotations.Test;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import static io.trino.spi.StandardErrorCode.ALREADY_EXISTS;
 import static io.trino.spi.StandardErrorCode.CONFIGURATION_INVALID;
 import static io.trino.spi.StandardErrorCode.INVALID_ARGUMENTS;
+import static java.nio.file.attribute.PosixFilePermission.OWNER_READ;
+import static java.nio.file.attribute.PosixFilePermission.OWNER_WRITE;
 import static java.util.stream.Collectors.toSet;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
@@ -183,16 +187,74 @@ public class TestViewZooLocalFileSystemClient {
 
     // a write that fails partway must leave the old file whole, so the write can't go to the view's own file
     @Test
-    public void testReplaceDoesNotWriteInPlace() throws IOException {
+    public void testReplaceDoesNotWriteInPlace() throws Throwable {
         Files.writeString(dir.resolve("s.t.json"), "old");
-        Files.setPosixFilePermissions(dir, PosixFilePermissions.fromString("r-xr-xr-x"));
-        try {
-            if (Files.isWritable(dir)) throw new SkipException("running as a user who ignores permissions");
-            expectThrows(TrinoException.class, () -> client.createView("s", "t", DEFINITION, true));
-            assertEquals(Files.readString(dir.resolve("s.t.json")), "old");
-        } finally {
-            Files.setPosixFilePermissions(dir, PosixFilePermissions.fromString("rwxr-xr-x"));
-        }
+        withDirPermissions("r-xr-xr-x", () -> expectThrows(TrinoException.class, () -> client.createView("s", "t", DEFINITION, true)));
+        assertEquals(Files.readString(dir.resolve("s.t.json")), "old");
+    }
+
+    @Test
+    public void testCreateSucceedsWhenTempDeleteFails() {
+        client = newClient(path -> path.getFileName().toString().startsWith(".viewzoo-"));
+        client.createView("s", "t", DEFINITION, false);
+        assertEquals(newClient().getViews().keySet(), Set.of(new SchemaTableName("s", "t")));
+    }
+
+    @Test
+    public void testRenameLinkFailureKeepsSource() throws Throwable {
+        Files.writeString(dir.resolve("s.source.json"), "source");
+        withDirPermissions("r-xr-xr-x", () -> {
+            TrinoException e = expectThrows(TrinoException.class, () -> client.renameView("s", "source", "t", "target"));
+            assertTrue(e.getMessage().startsWith("Failed to link file: "), e.getMessage());
+        });
+        assertEquals(files(), Set.of("views/s.source.json"));
+    }
+
+    // a failed source delete must not leave the view stored under both names
+    @Test
+    public void testRenameRollsBackWhenSourceDeleteFails() throws IOException {
+        Files.writeString(dir.resolve("s.source.json"), "source");
+        client = newClient(path -> path.getFileName().toString().equals("s.source.json"));
+        assertKeepsCause(expectThrows(TrinoException.class, () -> client.renameView("s", "source", "t", "target")));
+        assertEquals(files(), Set.of("views/s.source.json"));
+    }
+
+    @Test
+    public void testRenameRollbackFailureIsSuppressed() throws IOException {
+        Files.writeString(dir.resolve("s.source.json"), "source");
+        client = newClient(path -> true);
+        TrinoException e = expectThrows(TrinoException.class, () -> client.renameView("s", "source", "t", "target"));
+        assertEquals(e.getSuppressed().length, 1);
+        assertEquals(files(), Set.of("views/s.source.json", "views/t.target.json"));
+    }
+
+    // an execute-only directory resolves the target but can't be listed
+    @Test
+    public void testConflictCheckListingFailure() throws Throwable {
+        Files.writeString(dir.resolve("s.t.json"), "old");
+        Files.writeString(dir.resolve("s.source.json"), "source");
+        withDirPermissions("--x--x--x", () -> {
+            for (ThrowingRunnable write : List.<ThrowingRunnable>of(() -> client.createView("s", "t", DEFINITION, true), () -> client.renameView("s", "source", "s", "t"))) {
+                TrinoException e = expectThrows(TrinoException.class, write);
+                assertTrue(e.getMessage().startsWith("Failed to list directory: "), e.getMessage());
+            }
+        });
+        assertEquals(Files.readString(dir.resolve("s.t.json")), "old");
+        assertEquals(files(), Set.of("views/s.t.json", "views/s.source.json"));
+    }
+
+    @DataProvider
+    public Object[][] unusableDirectories() {
+        return new Object[][]{{"-wx-wx-wx", "Directory is not readable: "}, {"r-xr-xr-x", "Directory is not writable: "}};
+    }
+
+    @Test(dataProvider = "unusableDirectories")
+    public void testUnusableDirectoryFailsLoad(String permissions, String message) throws Throwable {
+        withDirPermissions(permissions, () -> {
+            TrinoException e = expectThrows(TrinoException.class, () -> client.getViews());
+            assertEquals(e.getErrorCode(), CONFIGURATION_INVALID.toErrorCode());
+            assertEquals(e.getMessage(), message + dir);
+        });
     }
 
     @Test
@@ -283,7 +345,31 @@ public class TestViewZooLocalFileSystemClient {
     }
 
     private ViewZooLocalFileSystemClient newClient() {
-        return new ViewZooLocalFileSystemClient(new ViewZooFilesystemConfig().setDir(dir.toString()), ViewZooStorageClientProvider.createObjectMapper());
+        return newClient(path -> false);
+    }
+
+    private ViewZooLocalFileSystemClient newClient(Predicate<Path> failDelete) {
+        return new ViewZooLocalFileSystemClient(new ViewZooFilesystemConfig().setDir(dir.toString()), ViewZooStorageClientProvider.createObjectMapper()) {
+            @Override
+            void deleteFile(Path path) throws IOException {
+                if (failDelete.test(path)) throw new IOException("Simulated delete failure");
+                super.deleteFile(path);
+            }
+        };
+    }
+
+    // skips rather than passes vacuously when run as a user who ignores permissions, such as root
+    private void withDirPermissions(String permissions, ThrowingRunnable runnable) throws Throwable {
+        Set<PosixFilePermission> granted = PosixFilePermissions.fromString(permissions);
+        Files.setPosixFilePermissions(dir, granted);
+        try {
+            if (Files.isReadable(dir) != granted.contains(OWNER_READ) || Files.isWritable(dir) != granted.contains(OWNER_WRITE)) {
+                throw new SkipException("running as a user who ignores permissions");
+            }
+            runnable.run();
+        } finally {
+            Files.setPosixFilePermissions(dir, PosixFilePermissions.fromString("rwxr-xr-x"));
+        }
     }
 
     private Set<String> files() throws IOException {
