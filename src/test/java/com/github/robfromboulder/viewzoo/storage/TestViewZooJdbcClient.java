@@ -44,6 +44,7 @@ public class TestViewZooJdbcClient {
     private PostgreSQLContainer postgres;
     private ViewZooJdbcConfig config;
     private final List<Object> resources = new ArrayList<>();
+    private boolean failReads;
     private ViewZooJdbcClient client;
 
     @BeforeClass(groups = "integration")
@@ -63,6 +64,7 @@ public class TestViewZooJdbcClient {
     public void setUp() throws SQLException {
         executeSql("DROP TABLE IF EXISTS viewzoo");
         resources.clear();
+        failReads = false;
         client = new TrackingJdbcClient();
     }
 
@@ -141,9 +143,18 @@ public class TestViewZooJdbcClient {
     }
 
     @Test(groups = "integration")
-    public void testClosesResourcesOnParseFailure() throws SQLException {
+    public void testClosesResourcesOnSkippedRow() throws SQLException {
         insertRow("s", "source", "not json");
         assertEquals(client.getViews(), Map.of());
+        assertTrue(resources.stream().anyMatch(ResultSet.class::isInstance));
+        for (Object resource : resources) assertTrue(isClosed(resource), "Not closed: " + resource);
+    }
+
+    @Test(groups = "integration")
+    public void testClosesResourcesOnReadFailure() throws SQLException {
+        client.createView("s", "source", definition("SELECT 1 AS x"));
+        failReads = true;
+        assertKeepsCause(expectThrows(TrinoException.class, () -> client.getViews()));
         assertTrue(resources.stream().anyMatch(ResultSet.class::isInstance));
         for (Object resource : resources) assertTrue(isClosed(resource), "Not closed: " + resource);
     }
@@ -235,10 +246,12 @@ public class TestViewZooJdbcClient {
         };
     }
 
-    // records every connection, statement and result set the client opens, so tests can check each was closed
+    // records every connection, statement and result set the client opens, so tests can check each was closed;
+    // failReads makes every ResultSet.getString throw
     private Object track(Object resource, Class<?> type) {
         resources.add(resource);
         return Proxy.newProxyInstance(type.getClassLoader(), new Class<?>[] {type}, (proxy, method, args) -> {
+            if (failReads && resource instanceof ResultSet && method.getName().equals("getString")) throw new SQLException("Injected read failure");
             Object result;
             try {
                 result = method.invoke(resource, args);

@@ -22,12 +22,12 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Stream;
 
+import static com.github.robfromboulder.viewzoo.storage.ViewZooStorageClient.isLoadable;
 import static io.trino.spi.StandardErrorCode.ALREADY_EXISTS;
 import static io.trino.spi.StandardErrorCode.CONFIGURATION_INVALID;
 import static io.trino.spi.StandardErrorCode.GENERIC_INTERNAL_ERROR;
 import static io.trino.spi.StandardErrorCode.INVALID_ARGUMENTS;
 import static java.nio.charset.StandardCharsets.UTF_8;
-import static java.util.Locale.ENGLISH;
 import static java.util.Objects.requireNonNull;
 
 public class ViewZooLocalFileSystemClient implements ViewZooStorageClient {
@@ -53,23 +53,15 @@ public class ViewZooLocalFileSystemClient implements ViewZooStorageClient {
         if (!dir.canWrite()) throw new TrinoException(CONFIGURATION_INVALID, "Directory is not writable: " + dir);
         for (File f : Stream.of(requireNonNull(dir.listFiles())).filter(f -> !f.isHidden() && f.getName().endsWith(".json")).toList()) {
             String[] name_pieces = f.getName().split("\\.", -1);
-            if ((name_pieces.length != 3) || !isLoadable(name_pieces[0]) || !isLoadable(name_pieces[1])) {
+            if ((name_pieces.length != 3) || !isLoadableFile(name_pieces[0]) || !isLoadableFile(name_pieces[1])) {
                 log.warn("Skipping file whose name is not a view name Trino can create: %s", f);
                 continue;
             }
-            ConnectorViewDefinition definition;
             try {
-                definition = mapper.readValue(f, ConnectorViewDefinition.class);
+                views.put(new SchemaTableName(name_pieces[0], name_pieces[1]), parse(f));
             } catch (IOException e) {
                 log.warn("Skipping file whose contents are not a view definition: %s: %s", f, e.getMessage());
-                continue;
             }
-            // the JSON literal null parses without error
-            if (definition == null) {
-                log.warn("Skipping file whose contents are not a view definition: %s", f);
-                continue;
-            }
-            views.put(new SchemaTableName(name_pieces[0], name_pieces[1]), definition);
         }
         return views;
     }
@@ -78,9 +70,8 @@ public class ViewZooLocalFileSystemClient implements ViewZooStorageClient {
     public void createView(String schema, String table, ConnectorViewDefinition definition) {
         validateName(schema, table);
         Path path = viewPath(schema, table);
+        requireNoConflictingFile(path, schema, table);
         try {
-            if (Files.exists(path) && !isExactFile(path))
-                throw new TrinoException(ALREADY_EXISTS, "View conflicts with an existing view file in filesystem storage: " + new SchemaTableName(schema, table));
             Files.writeString(path, mapper.writeValueAsString(definition));
         } catch (IOException e) {
             throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to write file: " + path + ": " + e.getMessage(), e);
@@ -102,10 +93,9 @@ public class ViewZooLocalFileSystemClient implements ViewZooStorageClient {
         validateName(targetSchema, targetTable);
         Path source = viewPath(sourceSchema, sourceTable);
         Path target = viewPath(targetSchema, targetTable);
+        requireNoConflictingFile(target, targetSchema, targetTable);
         // link(2) atomically refuses an existing target, where Files.move only checks before rename(2) replaces it
         try {
-            if (Files.exists(target) && !isExactFile(target))
-                throw new TrinoException(ALREADY_EXISTS, "View conflicts with an existing view file in filesystem storage: " + new SchemaTableName(targetSchema, targetTable));
             Files.createLink(target, source);
         } catch (FileAlreadyExistsException e) {
             throw new TrinoException(ALREADY_EXISTS, "View already exists: " + new SchemaTableName(targetSchema, targetTable), e);
@@ -137,16 +127,26 @@ public class ViewZooLocalFileSystemClient implements ViewZooStorageClient {
         return name.indexOf('/') < 0 && name.indexOf('\0') < 0 && Normalizer.isNormalized(name, Normalizer.Form.NFC);
     }
 
-    // Trino lowercases identifiers, so any other name would load as a view whose operations miss its file
-    private static boolean isLoadable(String name) {
-        return !name.isEmpty() && name.equals(name.toLowerCase(ENGLISH)) && isStorable(name);
+    private static boolean isLoadableFile(String name) {
+        return isLoadable(name) && isStorable(name);
     }
 
-    // false when a case-insensitive filesystem resolved the path to a file stored under a different name
-    private boolean isExactFile(Path path) throws IOException {
+    // the JSON literal null parses without error to no definition
+    private ConnectorViewDefinition parse(File f) throws IOException {
+        ConnectorViewDefinition definition = mapper.readValue(f, ConnectorViewDefinition.class);
+        if (definition == null) throw new IOException("Definition is JSON null");
+        return definition;
+    }
+
+    // a case-insensitive filesystem resolves the path to a file stored under a different name
+    private void requireNoConflictingFile(Path path, String schema, String table) {
+        if (!Files.exists(path)) return;
         String name = path.getFileName().toString();
         try (Stream<Path> files = Files.list(dir.toPath())) {
-            return files.anyMatch(p -> p.getFileName().toString().equals(name));
+            if (files.noneMatch(p -> p.getFileName().toString().equals(name)))
+                throw new TrinoException(ALREADY_EXISTS, "View conflicts with an existing view file in filesystem storage: " + new SchemaTableName(schema, table));
+        } catch (IOException e) {
+            throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to list directory: " + dir + ": " + e.getMessage(), e);
         }
     }
 

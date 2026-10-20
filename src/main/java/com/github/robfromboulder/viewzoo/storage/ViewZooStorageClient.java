@@ -7,6 +7,8 @@ import io.trino.spi.connector.SchemaTableName;
 
 import java.util.Map;
 
+import static java.util.Locale.ENGLISH;
+
 public interface ViewZooStorageClient {
 
     Map<SchemaTableName, ConnectorViewDefinition> getViews();
@@ -16,5 +18,10 @@ public interface ViewZooStorageClient {
     void dropView(String schema, String table);
 
     void renameView(String sourceSchema, String sourceTable, String targetSchema, String targetTable);
+
+    // Trino lowercases identifiers, so any other name would load as a view whose operations miss its stored entry
+    static boolean isLoadable(String name) {
+        return name != null && !name.isEmpty() && name.equals(name.toLowerCase(ENGLISH));
+    }
 
 }
