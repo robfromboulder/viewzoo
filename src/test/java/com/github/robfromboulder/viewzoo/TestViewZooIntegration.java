@@ -36,6 +36,7 @@ import static org.testng.Assert.assertTrue;
 
 public class TestViewZooIntegration {
 
+    private static final String MOUNT_DIR = "/var/viewzoo";
     private static final String TRINO_JDBC_URL = "jdbc:trino://localhost:7721";
     private static final int TRINO_MAX_WAIT_SECONDS = 30;
     private static final String TRINO_USER = "test";
@@ -44,6 +45,7 @@ public class TestViewZooIntegration {
 
     private File projectDir;
     private File dockerDir;
+    private Path mountDir;
 
     @BeforeClass(groups = "integration")
     public void setUp() throws Exception {
@@ -59,7 +61,7 @@ public class TestViewZooIntegration {
         assertTrue(pluginDir.exists(), "Plugin not built. Please run 'mvn clean package' first.");
 
         // empty, world-writable host directory for testfsmount, since the container's trino user may not own it
-        Path mountDir = projectDir.toPath().resolve("target/testfsmount");
+        mountDir = projectDir.toPath().resolve("target/testfsmount");
         if (Files.exists(mountDir)) {
             try (Stream<Path> paths = Files.walk(mountDir)) {
                 for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) Files.delete(path);
@@ -88,7 +90,7 @@ public class TestViewZooIntegration {
     // when the host is macOS
     @DataProvider(name = "fsCatalogs")
     public Object[][] fsCatalogProvider() {
-        return new Object[][]{{"testfs", "/home/trino"}, {"testfsmount", "/var/viewzoo"}};
+        return new Object[][]{{"testfs", "/home/trino"}, {"testfsmount", MOUNT_DIR}};
     }
 
     @Test(groups = "integration", dataProvider = "catalogs")
@@ -456,7 +458,7 @@ public class TestViewZooIntegration {
                 statement.execute("CREATE VIEW " + source + " AS SELECT 1 AS x");
                 if (caseInsensitive) {
                     assertFails(statement, "CREATE VIEW " + target + " AS SELECT 1 AS x", "conflicts with an existing view file");
-                    assertFails(statement, "ALTER VIEW " + source + " RENAME TO " + target, "already exists");
+                    assertFails(statement, "ALTER VIEW " + source + " RENAME TO " + target, "conflicts with an existing view file");
                     assertViewMissing(statement, target);
                 } else {
                     statement.execute("CREATE VIEW " + target + " AS SELECT 1 AS x");
@@ -494,8 +496,7 @@ public class TestViewZooIntegration {
                 assertViewMissing(statement, catalog + "." + quote(nfd) + ".t");
                 assertViewMissing(statement, catalog + ".\"café\".t");
             }
-            // Trino logs to stderr, which only some Compose versions merge into the stdout of compose logs
-            String logs = runCapture(null, "sh", "-c", "docker compose logs trino 2>&1");
+            String logs = trinoLogs();
             for (String file : skipped) {
                 assertTrue(logs.contains("Skipping file whose name is not a view name Trino can create: " + dir + "/" + file), "Expected warning for " + file);
             }
@@ -506,6 +507,90 @@ public class TestViewZooIntegration {
                 dropViews(statement, catalog + ".hidden.ok", catalog + ".template.v");
             }
         }
+    }
+
+    @DataProvider(name = "unreadableFiles")
+    public Object[][] unreadableFileProvider() {
+        List<Object[]> cases = new ArrayList<>();
+        for (Object[] fs : fsCatalogProvider()) {
+            cases.add(new Object[]{fs[0], fs[1], "corrupt", "not json"});
+            cases.add(new Object[]{fs[0], fs[1], "nulldef", "null"});
+        }
+        return cases.toArray(Object[][]::new);
+    }
+
+    @Test(groups = "integration", dataProvider = "unreadableFiles")
+    public void testUnreadableFileSkipped(String catalog, String dir, String table, String contents) throws Exception {
+        String file = dir + "/hidden." + table + ".json";
+        try {
+            try (Connection connection = DriverManager.getConnection(TRINO_JDBC_URL, TRINO_USER, null);
+                 Statement statement = connection.createStatement()) {
+                statement.execute("CREATE OR REPLACE VIEW " + catalog + ".hidden.ok AS SELECT 1 AS x");
+                writeContainerFile(file, contents);
+            }
+
+            runCommand("docker", "compose", "restart", "trino");
+            waitForTrino();
+
+            try (Connection connection = DriverManager.getConnection(TRINO_JDBC_URL, TRINO_USER, null);
+                 Statement statement = connection.createStatement()) {
+                assertSingleValue(statement, catalog + ".hidden.ok");
+                assertEquals(listedViews(statement, catalog, "hidden"), List.of("ok"));
+            }
+            assertTrue(trinoLogs().contains("Skipping file whose contents are not a view definition: " + file), "Expected warning for " + file);
+        } finally {
+            removeContainerFile(file);
+            recoverTrino();
+            try (Connection connection = DriverManager.getConnection(TRINO_JDBC_URL, TRINO_USER, null);
+                 Statement statement = connection.createStatement()) {
+                dropViews(statement, catalog + ".hidden.ok");
+            }
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testUnloadableRowsSkipped() throws Exception {
+        List<String> warnings = List.of(
+                "Skipping row whose definition is not a view definition: hidden.corrupt",
+                "Skipping row whose definition is not a view definition: hidden.nulldef",
+                "Skipping row whose name is not a view name Trino can create: .empty",
+                "Skipping row whose name is not a view name Trino can create: Hidden.Ok");
+        try {
+            try (Connection connection = DriverManager.getConnection(TRINO_JDBC_URL, TRINO_USER, null);
+                 Statement statement = connection.createStatement()) {
+                statement.execute("CREATE OR REPLACE VIEW testjdbc.hidden.ok AS SELECT 1 AS x");
+            }
+            // rows with bad names copy a valid definition, so only the name can cause the skip
+            runPostgres("INSERT INTO viewzoo VALUES ('hidden', 'corrupt', 'not json'), ('hidden', 'nulldef', NULL)");
+            runPostgres("INSERT INTO viewzoo SELECT n.schema, n.view_name, v.definition FROM viewzoo v, (VALUES ('', 'empty'), ('Hidden', 'Ok')) AS n(schema, view_name) WHERE v.schema = 'hidden' AND v.view_name = 'ok'");
+
+            runCommand("docker", "compose", "restart", "trino");
+            waitForTrino();
+
+            try (Connection connection = DriverManager.getConnection(TRINO_JDBC_URL, TRINO_USER, null);
+                 Statement statement = connection.createStatement()) {
+                assertSingleValue(statement, "testjdbc.hidden.ok");
+                assertEquals(listedViews(statement, "testjdbc", "hidden"), List.of("ok"));
+            }
+            String logs = trinoLogs();
+            for (String warning : warnings) assertTrue(logs.contains(warning), "Expected warning: " + warning);
+        } finally {
+            runPostgres("DELETE FROM viewzoo WHERE (schema, view_name) IN (('hidden', 'corrupt'), ('hidden', 'nulldef'), ('', 'empty'), ('Hidden', 'Ok'))");
+            recoverTrino();
+            try (Connection connection = DriverManager.getConnection(TRINO_JDBC_URL, TRINO_USER, null);
+                 Statement statement = connection.createStatement()) {
+                dropViews(statement, "testjdbc.hidden.ok");
+            }
+        }
+    }
+
+    // information_schema.views reads every definition, so it fails where a listing of names would not
+    private static List<String> listedViews(Statement statement, String catalog, String schema) throws SQLException {
+        List<String> views = new ArrayList<>();
+        try (ResultSet rs = statement.executeQuery("SELECT table_name FROM " + catalog + ".information_schema.views WHERE table_schema = '" + schema + "' ORDER BY table_name")) {
+            while (rs.next()) views.add(rs.getString(1));
+        }
+        return views;
     }
 
     // JSON for a view definition, as the connector itself writes it
@@ -573,8 +658,37 @@ public class TestViewZooIntegration {
         return runContainer(null, "cat", path);
     }
 
+    // a catalog that fails to load stops Trino, so mounted files are removed from the host and recoverTrino discards the rest
+    private void removeContainerFile(String path) throws Exception {
+        if (path.startsWith(MOUNT_DIR + "/")) {
+            Files.deleteIfExists(mountDir.resolve(path.substring(MOUNT_DIR.length() + 1)));
+        } else if (isTrinoRunning()) {
+            runContainer(null, "rm", "-f", path);
+        }
+    }
+
     private void writeContainerFile(String path, String content) throws Exception {
         runContainer(content, "sh", "-c", "cat > \"$1\"", "sh", path);
+    }
+
+    private void runPostgres(String sql) throws Exception {
+        runCapture(null, "docker", "compose", "exec", "-T", "postgres", "psql", "-U", "postgres", "-v", "ON_ERROR_STOP=1", "-c", sql);
+    }
+
+    // Trino logs to stderr, which only some Compose versions merge into the stdout of compose logs
+    private String trinoLogs() throws Exception {
+        return runCapture(null, "sh", "-c", "docker compose logs trino 2>&1");
+    }
+
+    private boolean isTrinoRunning() throws Exception {
+        return !runCapture(null, "docker", "compose", "ps", "--status", "running", "--quiet", "trino").isBlank();
+    }
+
+    // recreating the container discards every file written inside it
+    private void recoverTrino() throws Exception {
+        if (isTrinoReady()) return;
+        runCommand("docker", "compose", "up", "-d", "--force-recreate", "trino");
+        waitForTrino();
     }
 
     // runs in the Trino container, so file probes see each directory exactly as the connector does
@@ -626,21 +740,23 @@ public class TestViewZooIntegration {
     private void waitForTrino() throws Exception {
         long startTime = System.currentTimeMillis();
         while (System.currentTimeMillis() - startTime < TimeUnit.SECONDS.toMillis(TRINO_MAX_WAIT_SECONDS)) {
-            try (Connection connection = DriverManager.getConnection(TRINO_JDBC_URL, TRINO_USER, null);
-                 Statement statement = connection.createStatement();
-                 ResultSet resultSet = statement.executeQuery("SELECT 1")) {
-                if (!resultSet.next()) continue;
-                Set<String> ready = new HashSet<>();
-                try (ResultSet catalogs = statement.executeQuery("SHOW CATALOGS")) {
-                    while (catalogs.next()) ready.add(catalogs.getString(1));
-                }
-                if (ready.containsAll(CATALOGS)) return;
-            } catch (SQLException e) {
-                // ignore, Trino not ready yet
-            }
+            if (isTrinoReady()) return;
             TimeUnit.SECONDS.sleep(1);
         }
         throw new RuntimeException("Trino did not become ready within " + TRINO_MAX_WAIT_SECONDS + " seconds");
+    }
+
+    private static boolean isTrinoReady() {
+        try (Connection connection = DriverManager.getConnection(TRINO_JDBC_URL, TRINO_USER, null);
+             Statement statement = connection.createStatement()) {
+            Set<String> ready = new HashSet<>();
+            try (ResultSet catalogs = statement.executeQuery("SHOW CATALOGS")) {
+                while (catalogs.next()) ready.add(catalogs.getString(1));
+            }
+            return ready.containsAll(CATALOGS);
+        } catch (SQLException e) {
+            return false;
+        }
     }
 
 }
