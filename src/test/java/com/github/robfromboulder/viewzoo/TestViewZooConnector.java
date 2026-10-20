@@ -26,10 +26,13 @@ public class TestViewZooConnector {
         try {
             Map<String, String> config = Map.of("viewzoo.storage_type", "filesystem", "viewzoo.dir", dir.toString());
             Connector connector = new ViewZooConnectorFactory().create("viewzoo", config, new TestingConnectorContext());
-            ConnectorTransactionHandle transaction = connector.beginTransaction(READ_COMMITTED, false, true);
-            assertTrue(connector.getMetadata(null, transaction) instanceof ViewZooMetadata);
-            expectThrows(TrinoException.class, () -> connector.beginTransaction(SERIALIZABLE, false, true));
-            connector.shutdown();
+            try {
+                ConnectorTransactionHandle transaction = connector.beginTransaction(READ_COMMITTED, false, true);
+                assertTrue(connector.getMetadata(null, transaction) instanceof ViewZooMetadata);
+                expectThrows(TrinoException.class, () -> connector.beginTransaction(SERIALIZABLE, false, true));
+            } finally {
+                connector.shutdown();
+            }
         } finally {
             Files.delete(dir);
         }

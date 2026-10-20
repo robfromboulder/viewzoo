@@ -68,7 +68,7 @@ public class TestViewZooMetadata {
         assertEquals(metadata.listTables(null, Optional.of("t")), List.of(TARGET));
     }
 
-    // the connector holds no tables, so every table lookup comes back empty
+    // the connector holds no tables; these pin the placeholder results of table methods Trino 483 never calls
     @Test
     public void testTableMethods() {
         assertNull(metadata.getTableHandle(null, SOURCE, Optional.empty(), Optional.empty()));
