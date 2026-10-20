@@ -13,6 +13,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.HashMap;
@@ -22,9 +23,14 @@ import java.util.stream.Stream;
 import static io.trino.spi.StandardErrorCode.ALREADY_EXISTS;
 import static io.trino.spi.StandardErrorCode.CONFIGURATION_INVALID;
 import static io.trino.spi.StandardErrorCode.GENERIC_INTERNAL_ERROR;
+import static io.trino.spi.StandardErrorCode.INVALID_ARGUMENTS;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Objects.requireNonNull;
 
 public class ViewZooLocalFileSystemClient implements ViewZooStorageClient {
+
+    // Linux's limit, enforced on macOS too so a view directory written on either loads on both
+    private static final int MAX_FILE_NAME_BYTES = 255;
 
     public ViewZooLocalFileSystemClient(ViewZooFilesystemConfig config, ObjectMapper mapper) {
         this.dir = new File(requireNonNull(config.getDir(), "viewDir is null"));
@@ -56,6 +62,7 @@ public class ViewZooLocalFileSystemClient implements ViewZooStorageClient {
 
     @Override
     public void createView(String schema, String table, ConnectorViewDefinition definition) {
+        validateName(schema, table);
         Path path = viewPath(schema, table);
         try {
             Files.writeString(path, mapper.writeValueAsString(definition));
@@ -76,6 +83,7 @@ public class ViewZooLocalFileSystemClient implements ViewZooStorageClient {
 
     @Override
     public void renameView(String sourceSchema, String sourceTable, String targetSchema, String targetTable) {
+        validateName(targetSchema, targetTable);
         Path source = viewPath(sourceSchema, sourceTable);
         Path target = viewPath(targetSchema, targetTable);
         // link(2) atomically refuses an existing target, where Files.move only checks before rename(2) replaces it
@@ -95,8 +103,30 @@ public class ViewZooLocalFileSystemClient implements ViewZooStorageClient {
         }
     }
 
+    // '/' and NUL are the only characters Linux and macOS forbid in a filename
+    private static void validateName(String schema, String table) {
+        if (schema.indexOf('/') >= 0 || schema.indexOf('\0') >= 0) {
+            throw new TrinoException(INVALID_ARGUMENTS, "Schema name not supported by filesystem storage: " + schema);
+        } else if (table.indexOf('/') >= 0 || table.indexOf('\0') >= 0) {
+            throw new TrinoException(INVALID_ARGUMENTS, "Table name not supported by filesystem storage: " + table);
+        } else if (fileName(schema, table).getBytes(UTF_8).length > MAX_FILE_NAME_BYTES) {
+            throw new TrinoException(INVALID_ARGUMENTS, "View name too long for filesystem storage: " + new SchemaTableName(schema, table));
+        }
+    }
+
+    private static String fileName(String schema, String table) {
+        return schema + "." + table + ".json";
+    }
+
+    // refuses any path outside the flat directory layout, independent of the name rules above
     private Path viewPath(String schema, String table) {
-        return dir.toPath().resolve(schema + "." + table + ".json");
+        try {
+            Path path = dir.toPath().resolve(fileName(schema, table));
+            if (dir.toPath().equals(path.getParent())) return path;
+        } catch (InvalidPathException e) {
+            // fall through to rejection
+        }
+        throw new TrinoException(INVALID_ARGUMENTS, "View name not supported by filesystem storage: " + new SchemaTableName(schema, table));
     }
 
 }
