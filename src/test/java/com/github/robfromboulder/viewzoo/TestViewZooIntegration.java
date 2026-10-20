@@ -15,6 +15,8 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.testng.Assert.assertEquals;
@@ -273,23 +275,30 @@ public class TestViewZooIntegration {
                 String inSchema = catalog + "." + quote(name) + ".t";
                 String inTable = catalog + ".chars." + quote(name);
                 String renamed = catalog + ".chars." + quote(name + "2");
-                statement.execute("CREATE VIEW " + inSchema + " AS SELECT 1 AS x");
-                statement.execute("CREATE VIEW " + inTable + " AS SELECT 1 AS x");
-                assertSingleValue(statement, inSchema);
-                assertSingleValue(statement, inTable);
-                statement.execute("ALTER VIEW " + inTable + " RENAME TO " + renamed);
-                assertSingleValue(statement, renamed);
-                assertViewMissing(statement, inTable);
-                statement.execute("DROP VIEW " + inSchema);
-                statement.execute("DROP VIEW " + renamed);
-                assertViewMissing(statement, inSchema);
-                assertViewMissing(statement, renamed);
+                try {
+                    statement.execute("CREATE VIEW " + inSchema + " AS SELECT 1 AS x");
+                    statement.execute("CREATE VIEW " + inTable + " AS SELECT 1 AS x");
+                    assertSingleValue(statement, inSchema);
+                    assertSingleValue(statement, inTable);
+                    statement.execute("ALTER VIEW " + inTable + " RENAME TO " + renamed);
+                    assertSingleValue(statement, renamed);
+                    assertViewMissing(statement, inTable);
+                    statement.execute("DROP VIEW " + inSchema);
+                    statement.execute("DROP VIEW " + renamed);
+                    assertViewMissing(statement, inSchema);
+                    assertViewMissing(statement, renamed);
+                } finally {
+                    dropViews(inSchema, inTable, renamed);
+                }
             }
 
             // unquoted and quoted identifiers are both lowercased before reaching the connector
-            statement.execute("CREATE VIEW " + catalog + ".chars.\"MiXeD\" AS SELECT 1 AS x");
-            assertSingleValue(statement, catalog + ".chars.mixed");
-            statement.execute("DROP VIEW " + catalog + ".chars.mixed");
+            try {
+                statement.execute("CREATE VIEW " + catalog + ".chars.\"MiXeD\" AS SELECT 1 AS x");
+                assertSingleValue(statement, catalog + ".chars.mixed");
+            } finally {
+                dropViews(catalog + ".chars.mixed");
+            }
         }
     }
 
@@ -301,9 +310,11 @@ public class TestViewZooIntegration {
                 {"testjdbc", "/abs", null},
                 {"testjdbc", "a\u0000b", "invalid byte sequence"},
                 {"testjdbc", "日".repeat(100), null},
+                {"testjdbc", "cafe\u0301", null},
                 {"testfs", "a/b", "not supported by filesystem storage"},
                 {"testfs", "/abs", "not supported by filesystem storage"},
                 {"testfs", "a\u0000b", "not supported by filesystem storage"},
+                {"testfs", "cafe\u0301", "not supported by filesystem storage"},
                 // 300 bytes in UTF-8 exceeds the 255-byte filename limit of Linux filesystems
                 {"testfs", "日".repeat(100), "too long for filesystem storage"}};
     }
@@ -313,17 +324,20 @@ public class TestViewZooIntegration {
         try (Connection connection = DriverManager.getConnection(TRINO_JDBC_URL, TRINO_USER, null);
              Statement statement = connection.createStatement()) {
             for (String view : new String[]{catalog + "." + quote(name) + ".t", catalog + ".limits." + quote(name)}) {
-                if (expectedError == null) {
-                    statement.execute("CREATE VIEW " + view + " AS SELECT 1 AS x");
-                    assertSingleValue(statement, view);
-                    statement.execute("DROP VIEW " + view);
-                } else {
-                    try {
+                try {
+                    if (expectedError == null) {
                         statement.execute("CREATE VIEW " + view + " AS SELECT 1 AS x");
-                        throw new AssertionError("Expected CREATE VIEW to fail for " + view);
-                    } catch (SQLException e) {
-                        assertTrue(e.getMessage().contains(expectedError), "Expected '" + expectedError + "' error but got: " + e.getMessage());
+                        assertSingleValue(statement, view);
+                    } else {
+                        try {
+                            statement.execute("CREATE VIEW " + view + " AS SELECT 1 AS x");
+                            throw new AssertionError("Expected CREATE VIEW to fail for " + view);
+                        } catch (SQLException e) {
+                            assertTrue(e.getMessage().contains(expectedError), "Expected '" + expectedError + "' error but got: " + e.getMessage());
+                        }
                     }
+                } finally {
+                    dropViews(view);
                 }
             }
         }
@@ -333,10 +347,23 @@ public class TestViewZooIntegration {
     public void testViewNamesSurviveRestart(String catalog) throws Exception {
         String source = catalog + ".rename.source";
         String slashTarget = catalog + ".rename.\"a/b\"";
+        List<String> views = new ArrayList<>(List.of(source, slashTarget));
+        for (String name : PORTABLE_NAMES) {
+            views.add(catalog + "." + quote(name) + ".r");
+            views.add(catalog + ".restart." + quote(name));
+        }
+        try {
+            restartWithViews(catalog, source, slashTarget);
+        } finally {
+            dropViews(views.toArray(String[]::new));
+        }
+    }
+
+    private void restartWithViews(String catalog, String source, String slashTarget) throws Exception {
         try (Connection connection = DriverManager.getConnection(TRINO_JDBC_URL, TRINO_USER, null);
              Statement statement = connection.createStatement()) {
             for (String name : PORTABLE_NAMES) {
-                statement.execute("CREATE VIEW " + catalog + "." + quote(name) + ".t AS SELECT 1 AS x");
+                statement.execute("CREATE VIEW " + catalog + "." + quote(name) + ".r AS SELECT 1 AS x");
                 statement.execute("CREATE VIEW " + catalog + ".restart." + quote(name) + " AS SELECT 1 AS x");
             }
             statement.execute("CREATE VIEW " + source + " AS SELECT 1 AS x");
@@ -361,7 +388,7 @@ public class TestViewZooIntegration {
         try (Connection connection = DriverManager.getConnection(TRINO_JDBC_URL, TRINO_USER, null);
              Statement statement = connection.createStatement()) {
             for (String name : PORTABLE_NAMES) {
-                String inSchema = catalog + "." + quote(name) + ".t";
+                String inSchema = catalog + "." + quote(name) + ".r";
                 String inTable = catalog + ".restart." + quote(name);
                 assertSingleValue(statement, inSchema);
                 assertSingleValue(statement, inTable);
@@ -397,6 +424,22 @@ public class TestViewZooIntegration {
             throw new AssertionError("Expected query to fail for missing view " + viewName);
         } catch (SQLException e) {
             assertTrue(e.getMessage().contains("does not exist"), "Expected 'does not exist' error but got: " + e.getMessage());
+        }
+    }
+
+    // best effort, so a failed assertion doesn't leave views behind for later tests
+    private static void dropViews(String... views) {
+        try (Connection connection = DriverManager.getConnection(TRINO_JDBC_URL, TRINO_USER, null);
+             Statement statement = connection.createStatement()) {
+            for (String view : views) {
+                try {
+                    statement.execute("DROP VIEW IF EXISTS " + view);
+                } catch (SQLException e) {
+                    // ignore, keep dropping the rest
+                }
+            }
+        } catch (SQLException e) {
+            // ignore, Trino unavailable
         }
     }
 
