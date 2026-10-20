@@ -72,6 +72,33 @@ Integration tests run Trino only on Linux, so filesystem storage under Trino on 
 - `ALTER VIEW s."ß" RENAME TO s."x/y"` fails with `INVALID_ARGUMENTS`, and `s."ß"` still queries.
 - After copying any view file to `Upper.Case.json` and restarting Trino, `server.log` warns `Skipping file whose name is not a view name Trino can create`, and every view above still lists and queries.
 
+## Coverage
+
+JaCoCo isn't in the pom, so measure coverage by attaching its agent from the command line. Plugin code running inside the Trino container is counted only through a temporary `src/test/docker/docker-compose.override.yml`, which Compose picks up automatically; delete it afterwards so normal runs stay unaffected.
+
+```bash
+mvn clean package -DskipTests
+mkdir -p target/jacoco && chmod 777 target/jacoco
+mvn dependency:copy -Dartifact=org.jacoco:org.jacoco.agent:0.8.15:jar:runtime -DoutputDirectory=target/jacoco
+mvn dependency:copy -Dartifact=org.jacoco:org.jacoco.cli:0.8.15:jar:nodeps -DoutputDirectory=target/jacoco
+mv target/jacoco/org.jacoco.agent-0.8.15-runtime.jar target/jacoco/jacocoagent.jar
+mv target/jacoco/org.jacoco.cli-0.8.15-nodeps.jar target/jacoco/jacococli.jar
+cat > src/test/docker/docker-compose.override.yml <<'YML'
+services:
+  trino:
+    environment:
+      JAVA_TOOL_OPTIONS: "-javaagent:/jacoco/jacocoagent.jar=destfile=/jacoco/trino.exec,append=true,includes=com.github.robfromboulder.*"
+    volumes:
+      - ${PROJECT_ROOT}/target/jacoco:/jacoco
+YML
+mvn org.jacoco:jacoco-maven-plugin:0.8.15:prepare-agent test -Djacoco.destFile=$PWD/target/jacoco/unit.exec
+mvn org.jacoco:jacoco-maven-plugin:0.8.15:prepare-agent test -Pintegration -Djacoco.destFile=$PWD/target/jacoco/it.exec
+rm src/test/docker/docker-compose.override.yml
+cd target/jacoco && java -jar jacococli.jar report unit.exec it.exec trino.exec --classfiles ../classes --sourcefiles ../../src/main/java --html html --xml all.xml
+```
+
+A missing `trino.exec` means the container agent didn't load.
+
 ## Code Style
 
 - IntelliJ IDEA defaults with 130-character line length
