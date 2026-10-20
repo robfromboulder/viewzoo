@@ -7,10 +7,10 @@ import org.testng.annotations.BeforeClass;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.InputStreamReader;
+import java.io.IOException;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
@@ -24,6 +24,7 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
@@ -61,7 +62,7 @@ public class TestViewZooIntegration {
         Path mountDir = projectDir.toPath().resolve("target/testfsmount");
         if (Files.exists(mountDir)) {
             try (Stream<Path> paths = Files.walk(mountDir)) {
-                paths.sorted(Comparator.reverseOrder()).forEach(p -> p.toFile().delete());
+                for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) Files.delete(path);
             }
         }
         Files.createDirectories(mountDir);
@@ -346,6 +347,7 @@ public class TestViewZooIntegration {
                 // 300 bytes in UTF-8 exceeds the 255-byte filename limit of Linux filesystems
                 {"testfs", "日".repeat(100), "too long for filesystem storage"},
                 {"testfsmount", "a/b", "not supported by filesystem storage"},
+                {"testfsmount", "/abs", "not supported by filesystem storage"},
                 {"testfsmount", "a\u0000b", "not supported by filesystem storage"},
                 {"testfsmount", "cafe\u0301", "not supported by filesystem storage"},
                 {"testfsmount", "日".repeat(100), "too long for filesystem storage"}};
@@ -492,7 +494,7 @@ public class TestViewZooIntegration {
                 assertViewMissing(statement, catalog + "." + quote(nfd) + ".t");
                 assertViewMissing(statement, catalog + ".\"café\".t");
             }
-            String logs = runQuietly(null, "docker", "compose", "logs", "trino");
+            String logs = run(null, false, "docker", "compose", "logs", "trino");
             for (String file : skipped) {
                 assertTrue(logs.contains("Skipping file whose name is not a view name Trino can create: " + dir + "/" + file), "Expected warning for " + file);
             }
@@ -574,47 +576,38 @@ public class TestViewZooIntegration {
         runContainer(content, "sh", "-c", "cat > \"$1\"", "sh", path);
     }
 
-    // runs in the Trino container, so file probes measure Linux semantics rather than the host's
+    // runs in the Trino container, so file probes see each directory exactly as the connector does
     private String runContainer(String stdin, String... command) throws Exception {
         List<String> args = new ArrayList<>(List.of("docker", "compose", "exec", "-T", "trino"));
         args.addAll(List.of(command));
-        return runQuietly(stdin, args.toArray(String[]::new));
+        return run(stdin, false, args.toArray(String[]::new));
     }
 
-    private String runQuietly(String stdin, String... command) throws Exception {
+    private void runCommand(String... command) throws Exception {
+        run(null, true, command);
+    }
+
+    // returns stdout only, so warnings on stderr can't corrupt captured output
+    private String run(String stdin, boolean echo, String... command) throws Exception {
         ProcessBuilder processBuilder = new ProcessBuilder(command);
         processBuilder.directory(dockerDir);
         processBuilder.environment().put("PROJECT_ROOT", projectDir.getAbsolutePath());
-        processBuilder.redirectErrorStream(true);
         Process process = processBuilder.start();
+        CompletableFuture<String> error = CompletableFuture.supplyAsync(() -> {
+            try {
+                return new String(process.getErrorStream().readAllBytes(), UTF_8);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        });
         try (OutputStream in = process.getOutputStream()) {
             if (stdin != null) in.write(stdin.getBytes(UTF_8));
         }
         String output = new String(process.getInputStream().readAllBytes(), UTF_8);
         int exitCode = process.waitFor();
-        if (exitCode != 0) throw new RuntimeException("Command failed with exit code " + exitCode + ": " + String.join(" ", command) + "\n" + output);
+        if (echo) System.out.print(output + error.get());
+        if (exitCode != 0) throw new RuntimeException("Command failed with exit code " + exitCode + ": " + String.join(" ", command) + "\n" + error.get());
         return output;
-    }
-
-    private void runCommand(String... command) throws Exception {
-        // run process
-        ProcessBuilder processBuilder = new ProcessBuilder(command);
-        processBuilder.directory(dockerDir);
-        processBuilder.environment().put("PROJECT_ROOT", projectDir.getAbsolutePath());
-        processBuilder.redirectErrorStream(true);
-        Process process = processBuilder.start();
-
-        // echo process output
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                System.out.println(line);
-            }
-        }
-
-        // check process exit code
-        int exitCode = process.waitFor();
-        if (exitCode != 0) throw new RuntimeException("Command failed with exit code " + exitCode + ": " + String.join(" ", command));
     }
 
     private void waitForTrino() throws Exception {
