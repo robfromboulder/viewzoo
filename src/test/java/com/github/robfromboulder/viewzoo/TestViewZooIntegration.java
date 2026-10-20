@@ -26,6 +26,7 @@ public class TestViewZooIntegration {
     private static final String TRINO_JDBC_URL = "jdbc:trino://localhost:7721";
     private static final int TRINO_MAX_WAIT_SECONDS = 30;
     private static final String TRINO_USER = "test";
+    private static final String[] PORTABLE_NAMES = {"a b", "a-b_c", "a\\b", "a:b", "a*b?", "a<b>|", "a\"b", "a'b%", "a\tb", "a\nb", "café", "日本", "🐧", " lead", "trail "};
 
     private File projectDir;
     private File dockerDir;
@@ -264,11 +265,128 @@ public class TestViewZooIntegration {
         }
     }
 
+    @Test(groups = "integration", dataProvider = "catalogs")
+    public void testViewNameCharacters(String catalog) throws Exception {
+        try (Connection connection = DriverManager.getConnection(TRINO_JDBC_URL, TRINO_USER, null);
+             Statement statement = connection.createStatement()) {
+            for (String name : PORTABLE_NAMES) {
+                String inSchema = catalog + "." + quote(name) + ".t";
+                String inTable = catalog + ".chars." + quote(name);
+                String renamed = catalog + ".chars." + quote(name + "2");
+                statement.execute("CREATE VIEW " + inSchema + " AS SELECT 1 AS x");
+                statement.execute("CREATE VIEW " + inTable + " AS SELECT 1 AS x");
+                assertSingleValue(statement, inSchema);
+                assertSingleValue(statement, inTable);
+                statement.execute("ALTER VIEW " + inTable + " RENAME TO " + renamed);
+                assertSingleValue(statement, renamed);
+                assertViewMissing(statement, inTable);
+                statement.execute("DROP VIEW " + inSchema);
+                statement.execute("DROP VIEW " + renamed);
+                assertViewMissing(statement, inSchema);
+                assertViewMissing(statement, renamed);
+            }
+
+            // unquoted and quoted identifiers are both lowercased before reaching the connector
+            statement.execute("CREATE VIEW " + catalog + ".chars.\"MiXeD\" AS SELECT 1 AS x");
+            assertSingleValue(statement, catalog + ".chars.mixed");
+            statement.execute("DROP VIEW " + catalog + ".chars.mixed");
+        }
+    }
+
+    @DataProvider(name = "storageSpecificNames")
+    public Object[][] storageSpecificNameProvider() {
+        // expected error fragment, or null when the name is accepted
+        return new Object[][]{
+                {"testjdbc", "a/b", null},
+                {"testjdbc", "/abs", null},
+                {"testjdbc", "a\u0000b", "invalid byte sequence"},
+                {"testjdbc", "日".repeat(100), null},
+                {"testfs", "a/b", "not supported by filesystem storage"},
+                {"testfs", "/abs", "not supported by filesystem storage"},
+                {"testfs", "a\u0000b", "not supported by filesystem storage"},
+                // 300 bytes in UTF-8 exceeds the 255-byte filename limit of Linux filesystems
+                {"testfs", "日".repeat(100), "too long for filesystem storage"}};
+    }
+
+    @Test(groups = "integration", dataProvider = "storageSpecificNames")
+    public void testViewNameStorageLimits(String catalog, String name, String expectedError) throws Exception {
+        try (Connection connection = DriverManager.getConnection(TRINO_JDBC_URL, TRINO_USER, null);
+             Statement statement = connection.createStatement()) {
+            for (String view : new String[]{catalog + "." + quote(name) + ".t", catalog + ".limits." + quote(name)}) {
+                if (expectedError == null) {
+                    statement.execute("CREATE VIEW " + view + " AS SELECT 1 AS x");
+                    assertSingleValue(statement, view);
+                    statement.execute("DROP VIEW " + view);
+                } else {
+                    try {
+                        statement.execute("CREATE VIEW " + view + " AS SELECT 1 AS x");
+                        throw new AssertionError("Expected CREATE VIEW to fail for " + view);
+                    } catch (SQLException e) {
+                        assertTrue(e.getMessage().contains(expectedError), "Expected '" + expectedError + "' error but got: " + e.getMessage());
+                    }
+                }
+            }
+        }
+    }
+
+    @Test(groups = "integration", dataProvider = "catalogs")
+    public void testViewNamesSurviveRestart(String catalog) throws Exception {
+        String source = catalog + ".rename.source";
+        String slashTarget = catalog + ".rename.\"a/b\"";
+        try (Connection connection = DriverManager.getConnection(TRINO_JDBC_URL, TRINO_USER, null);
+             Statement statement = connection.createStatement()) {
+            for (String name : PORTABLE_NAMES) {
+                statement.execute("CREATE VIEW " + catalog + "." + quote(name) + ".t AS SELECT 1 AS x");
+                statement.execute("CREATE VIEW " + catalog + ".restart." + quote(name) + " AS SELECT 1 AS x");
+            }
+            statement.execute("CREATE VIEW " + source + " AS SELECT 1 AS x");
+            if (catalog.equals("testfs")) {
+                try {
+                    statement.execute("ALTER VIEW " + source + " RENAME TO " + slashTarget);
+                    throw new AssertionError("Expected ALTER VIEW to fail for " + slashTarget);
+                } catch (SQLException e) {
+                    assertTrue(e.getMessage().contains("not supported by filesystem storage"), "Expected 'not supported by filesystem storage' error but got: " + e.getMessage());
+                }
+                assertSingleValue(statement, source);
+            } else {
+                statement.execute("ALTER VIEW " + source + " RENAME TO " + slashTarget);
+                assertSingleValue(statement, slashTarget);
+            }
+        }
+
+        // restart Postgresql & Trino services
+        runCommand("docker", "compose", "restart");
+        waitForTrino();
+
+        try (Connection connection = DriverManager.getConnection(TRINO_JDBC_URL, TRINO_USER, null);
+             Statement statement = connection.createStatement()) {
+            for (String name : PORTABLE_NAMES) {
+                String inSchema = catalog + "." + quote(name) + ".t";
+                String inTable = catalog + ".restart." + quote(name);
+                assertSingleValue(statement, inSchema);
+                assertSingleValue(statement, inTable);
+                statement.execute("DROP VIEW " + inSchema);
+                statement.execute("DROP VIEW " + inTable);
+            }
+            String survivor = catalog.equals("testfs") ? source : slashTarget;
+            assertSingleValue(statement, survivor);
+            statement.execute("DROP VIEW " + survivor);
+        }
+    }
+
     private static void assertSingleRow(Statement statement, String viewName, int key, String value) throws SQLException {
         try (ResultSet rs = statement.executeQuery("SELECT * FROM " + viewName)) {
             assertTrue(rs.next(), "Expected one row in " + viewName);
             assertEquals(rs.getInt("key"), key);
             assertEquals(rs.getString("value"), value);
+            assertFalse(rs.next(), "Expected no more rows in " + viewName);
+        }
+    }
+
+    private static void assertSingleValue(Statement statement, String viewName) throws SQLException {
+        try (ResultSet rs = statement.executeQuery("SELECT x FROM " + viewName)) {
+            assertTrue(rs.next(), "Expected one row in " + viewName);
+            assertEquals(rs.getInt("x"), 1);
             assertFalse(rs.next(), "Expected no more rows in " + viewName);
         }
     }
@@ -280,6 +398,10 @@ public class TestViewZooIntegration {
         } catch (SQLException e) {
             assertTrue(e.getMessage().contains("does not exist"), "Expected 'does not exist' error but got: " + e.getMessage());
         }
+    }
+
+    private static String quote(String identifier) {
+        return "\"" + identifier.replace("\"", "\"\"") + "\"";
     }
 
     private void runCommand(String... command) throws Exception {
