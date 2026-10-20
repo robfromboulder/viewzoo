@@ -144,7 +144,7 @@ public class ViewZooLocalFileSystemClient implements ViewZooStorageClient {
         return schema + "." + table + ".json";
     }
 
-    // refuses any path outside the flat directory layout, independent of the name rules above
+    // refuses any name that resolves outside the flat directory layout, independent of the name rules above
     private Path viewPath(String schema, String table) {
         try {
             Path path = dir.toPath().resolve(fileName(schema, table));

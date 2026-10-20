@@ -30,9 +30,6 @@ import static io.trino.spi.StandardErrorCode.INVALID_ARGUMENTS;
 
 public class ViewZooMetadata implements ConnectorMetadata {
 
-    // define maximum length for schema and table names
-    // conservative limits ensure filesystem compatibility
-    // "schema.table.json" = 100 + 1 + 100 + 5 = 206 < 255
     public static final int MAX_SCHEMA_NAME_LENGTH = 100;
     public static final int MAX_TABLE_NAME_LENGTH = 100;
 
