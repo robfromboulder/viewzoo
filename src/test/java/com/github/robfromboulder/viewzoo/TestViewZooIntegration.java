@@ -10,14 +10,24 @@ import org.testng.annotations.Test;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
+
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
@@ -28,6 +38,7 @@ public class TestViewZooIntegration {
     private static final String TRINO_JDBC_URL = "jdbc:trino://localhost:7721";
     private static final int TRINO_MAX_WAIT_SECONDS = 30;
     private static final String TRINO_USER = "test";
+    private static final Set<String> CATALOGS = Set.of("testjdbc", "testfs", "testfsmount");
     private static final String[] PORTABLE_NAMES = {"a b", "a-b_c", "a\\b", "a:b", "a*b?", "a<b>|", "a\"b", "a'b%", "a\tb", "a\nb", "café", "日本", "🐧", " lead", "trail "};
 
     private File projectDir;
@@ -46,6 +57,16 @@ public class TestViewZooIntegration {
         File pluginDir = new File(projectDir, "target/viewzoo-483");
         assertTrue(pluginDir.exists(), "Plugin not built. Please run 'mvn clean package' first.");
 
+        // empty, world-writable host directory for testfsmount, since the container's trino user may not own it
+        Path mountDir = projectDir.toPath().resolve("target/testfsmount");
+        if (Files.exists(mountDir)) {
+            try (Stream<Path> paths = Files.walk(mountDir)) {
+                paths.sorted(Comparator.reverseOrder()).forEach(p -> p.toFile().delete());
+            }
+        }
+        Files.createDirectories(mountDir);
+        Files.setPosixFilePermissions(mountDir, PosixFilePermissions.fromString("rwxrwxrwx"));
+
         // start Postgresql & Trino services on private ports
         runCommand("docker", "compose", "up", "-d");
         waitForTrino();
@@ -59,7 +80,14 @@ public class TestViewZooIntegration {
 
     @DataProvider(name = "catalogs")
     public Object[][] catalogProvider() {
-        return new Object[][]{{"testjdbc"}, {"testfs"}};
+        return new Object[][]{{"testjdbc"}, {"testfs"}, {"testfsmount"}};
+    }
+
+    // testfs keeps views inside the Linux container; testfsmount keeps them in a host directory, which is case-insensitive
+    // when the host is macOS
+    @DataProvider(name = "fsCatalogs")
+    public Object[][] fsCatalogProvider() {
+        return new Object[][]{{"testfs", "/home/trino"}, {"testfsmount", "/var/viewzoo"}};
     }
 
     @Test(groups = "integration", dataProvider = "catalogs")
@@ -316,7 +344,11 @@ public class TestViewZooIntegration {
                 {"testfs", "a\u0000b", "not supported by filesystem storage"},
                 {"testfs", "cafe\u0301", "not supported by filesystem storage"},
                 // 300 bytes in UTF-8 exceeds the 255-byte filename limit of Linux filesystems
-                {"testfs", "日".repeat(100), "too long for filesystem storage"}};
+                {"testfs", "日".repeat(100), "too long for filesystem storage"},
+                {"testfsmount", "a/b", "not supported by filesystem storage"},
+                {"testfsmount", "a\u0000b", "not supported by filesystem storage"},
+                {"testfsmount", "cafe\u0301", "not supported by filesystem storage"},
+                {"testfsmount", "日".repeat(100), "too long for filesystem storage"}};
     }
 
     @Test(groups = "integration", dataProvider = "storageSpecificNames")
@@ -373,7 +405,7 @@ public class TestViewZooIntegration {
                 statement.execute("CREATE VIEW " + catalog + ".restart." + quote(name) + " AS SELECT 1 AS x");
             }
             statement.execute("CREATE VIEW " + source + " AS SELECT 1 AS x");
-            if (catalog.equals("testfs")) {
+            if (catalog.startsWith("testfs")) {
                 try {
                     statement.execute("ALTER VIEW " + source + " RENAME TO " + slashTarget);
                     throw new AssertionError("Expected ALTER VIEW to fail for " + slashTarget);
@@ -401,9 +433,90 @@ public class TestViewZooIntegration {
                 statement.execute("DROP VIEW " + inSchema);
                 statement.execute("DROP VIEW " + inTable);
             }
-            String survivor = catalog.equals("testfs") ? source : slashTarget;
+            String survivor = catalog.startsWith("testfs") ? source : slashTarget;
             assertSingleValue(statement, survivor);
             statement.execute("DROP VIEW " + survivor);
+        }
+    }
+
+    @Test(groups = "integration", dataProvider = "fsCatalogs")
+    public void testFileNameCollision(String catalog, String dir) throws Exception {
+        String foreign = dir + "/Collide.T.json";
+        String source = catalog + ".collide.source";
+        String target = catalog + ".collide.t";
+        try (Connection connection = DriverManager.getConnection(TRINO_JDBC_URL, TRINO_USER, null);
+             Statement statement = connection.createStatement()) {
+            try {
+                String json = viewJson(statement, catalog, dir);
+                writeContainerFile(foreign, json);
+                boolean caseInsensitive = containerFileExists(dir + "/collide.t.json");
+                System.out.println(catalog + " directory is case-" + (caseInsensitive ? "insensitive" : "sensitive"));
+                statement.execute("CREATE VIEW " + source + " AS SELECT 1 AS x");
+                if (caseInsensitive) {
+                    assertFails(statement, "CREATE VIEW " + target + " AS SELECT 1 AS x", "conflicts with an existing view file");
+                    assertFails(statement, "ALTER VIEW " + source + " RENAME TO " + target, "already exists");
+                    assertViewMissing(statement, target);
+                } else {
+                    statement.execute("CREATE VIEW " + target + " AS SELECT 1 AS x");
+                    assertSingleValue(statement, target);
+                }
+                assertEquals(readContainerFile(foreign), json);
+            } finally {
+                dropViews(statement, source, target, catalog + ".template.v");
+                runContainer(null, "rm", "-f", foreign);
+            }
+        }
+    }
+
+    @Test(groups = "integration", dataProvider = "fsCatalogs")
+    public void testUnsupportedFileNamesSkipped(String catalog, String dir) throws Exception {
+        String nfd = "cafe\u0301";
+        List<String> skipped = List.of("Hidden.Upper.json", nfd + ".t.json", "hidden..json", "hidden.a.b.json");
+        List<String> files = new ArrayList<>(skipped);
+        files.add("hidden.ok.json");
+        try {
+            try (Connection connection = DriverManager.getConnection(TRINO_JDBC_URL, TRINO_USER, null);
+                 Statement statement = connection.createStatement()) {
+                String json = viewJson(statement, catalog, dir);
+                for (String file : files) writeContainerFile(dir + "/" + file, json);
+            }
+            assertTrue(runContainer(null, "ls", dir).contains(nfd + ".t.json"), "Expected Linux to keep the NFD file name");
+
+            runCommand("docker", "compose", "restart", "trino");
+            waitForTrino();
+
+            try (Connection connection = DriverManager.getConnection(TRINO_JDBC_URL, TRINO_USER, null);
+                 Statement statement = connection.createStatement()) {
+                assertSingleValue(statement, catalog + ".hidden.ok");
+                assertViewMissing(statement, catalog + ".hidden.upper");
+                assertViewMissing(statement, catalog + "." + quote(nfd) + ".t");
+                assertViewMissing(statement, catalog + ".\"café\".t");
+            }
+            String logs = runQuietly(null, "docker", "compose", "logs", "trino");
+            for (String file : skipped) {
+                assertTrue(logs.contains("Skipping file whose name is not a view name Trino can create: " + dir + "/" + file), "Expected warning for " + file);
+            }
+        } finally {
+            for (String file : files) runContainer(null, "rm", "-f", dir + "/" + file);
+            try (Connection connection = DriverManager.getConnection(TRINO_JDBC_URL, TRINO_USER, null);
+                 Statement statement = connection.createStatement()) {
+                dropViews(statement, catalog + ".hidden.ok", catalog + ".template.v");
+            }
+        }
+    }
+
+    // JSON for a view definition, as the connector itself writes it
+    private String viewJson(Statement statement, String catalog, String dir) throws Exception {
+        statement.execute("CREATE OR REPLACE VIEW " + catalog + ".template.v AS SELECT 1 AS x");
+        return readContainerFile(dir + "/template.v.json");
+    }
+
+    private static void assertFails(Statement statement, String sql, String expectedError) {
+        try {
+            statement.execute(sql);
+            throw new AssertionError("Expected failure for " + sql);
+        } catch (SQLException e) {
+            assertTrue(e.getMessage().contains(expectedError), "Expected '" + expectedError + "' error but got: " + e.getMessage());
         }
     }
 
@@ -449,6 +562,40 @@ public class TestViewZooIntegration {
         return "\"" + identifier.replace("\"", "\"\"") + "\"";
     }
 
+    private boolean containerFileExists(String path) throws Exception {
+        return runContainer(null, "sh", "-c", "if [ -e \"$1\" ]; then echo yes; else echo no; fi", "sh", path).trim().equals("yes");
+    }
+
+    private String readContainerFile(String path) throws Exception {
+        return runContainer(null, "cat", path);
+    }
+
+    private void writeContainerFile(String path, String content) throws Exception {
+        runContainer(content, "sh", "-c", "cat > \"$1\"", "sh", path);
+    }
+
+    // runs in the Trino container, so file probes measure Linux semantics rather than the host's
+    private String runContainer(String stdin, String... command) throws Exception {
+        List<String> args = new ArrayList<>(List.of("docker", "compose", "exec", "-T", "trino"));
+        args.addAll(List.of(command));
+        return runQuietly(stdin, args.toArray(String[]::new));
+    }
+
+    private String runQuietly(String stdin, String... command) throws Exception {
+        ProcessBuilder processBuilder = new ProcessBuilder(command);
+        processBuilder.directory(dockerDir);
+        processBuilder.environment().put("PROJECT_ROOT", projectDir.getAbsolutePath());
+        processBuilder.redirectErrorStream(true);
+        Process process = processBuilder.start();
+        try (OutputStream in = process.getOutputStream()) {
+            if (stdin != null) in.write(stdin.getBytes(UTF_8));
+        }
+        String output = new String(process.getInputStream().readAllBytes(), UTF_8);
+        int exitCode = process.waitFor();
+        if (exitCode != 0) throw new RuntimeException("Command failed with exit code " + exitCode + ": " + String.join(" ", command) + "\n" + output);
+        return output;
+    }
+
     private void runCommand(String... command) throws Exception {
         // run process
         ProcessBuilder processBuilder = new ProcessBuilder(command);
@@ -477,16 +624,11 @@ public class TestViewZooIntegration {
                  Statement statement = connection.createStatement();
                  ResultSet resultSet = statement.executeQuery("SELECT 1")) {
                 if (!resultSet.next()) continue;
-                boolean fs_ready = false;
-                boolean jdbc_ready = false;
+                Set<String> ready = new HashSet<>();
                 try (ResultSet catalogs = statement.executeQuery("SHOW CATALOGS")) {
-                    while (catalogs.next()) {
-                        String catalog = catalogs.getString(1);
-                        if ("testfs".equals(catalog)) fs_ready = true;
-                        if ("testjdbc".equals(catalog)) jdbc_ready = true;
-                    }
+                    while (catalogs.next()) ready.add(catalogs.getString(1));
                 }
-                if (jdbc_ready && fs_ready) return;
+                if (ready.containsAll(CATALOGS)) return;
             } catch (SQLException e) {
                 // ignore, Trino not ready yet
             }
