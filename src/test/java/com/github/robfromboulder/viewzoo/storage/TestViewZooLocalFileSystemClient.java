@@ -245,6 +245,19 @@ public class TestViewZooLocalFileSystemClient {
     }
 
     @Test
+    public void testRenameFailsWhenSourceAndTargetBothGone() throws IOException {
+        Files.writeString(dir.resolve("s.source.json"), "source");
+        client = newClient(path -> path.getFileName().toString().equals("s.source.json"), path -> {
+            Files.delete(path);
+            Files.delete(dir.resolve("t.target.json"));
+        });
+        TrinoException e = expectThrows(TrinoException.class, () -> client.renameView("s", "source", "t", "target"));
+        assertKeepsCause(e);
+        assertEquals(e.getSuppressed().length, 1);
+        assertEquals(files(), Set.of());
+    }
+
+    @Test
     public void testRenameKeepsTargetReplacedBeforeRollback() throws IOException {
         Path target = dir.resolve("t.target.json");
         Files.writeString(dir.resolve("s.source.json"), "source");

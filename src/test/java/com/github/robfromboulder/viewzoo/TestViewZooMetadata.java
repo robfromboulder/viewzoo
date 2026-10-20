@@ -68,7 +68,7 @@ public class TestViewZooMetadata {
         assertEquals(metadata.listTables(null, Optional.of("t")), List.of(TARGET));
     }
 
-    // the connector holds no tables, so lookups return the SPI's not-found null and properties are empty; no integration test reaches these
+    // the connector holds no tables, so lookups return the SPI's not-found null and properties are empty
     @Test
     public void testTableMethods() {
         assertNull(metadata.getTableHandle(null, SOURCE, Optional.empty(), Optional.empty()));
