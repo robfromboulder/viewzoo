@@ -61,6 +61,17 @@ Integration tests are in the TestNG `integration` group, run only with `-Pintegr
 
 `TestViewZooJdbcClient` starts its own PostgreSQL with Testcontainers and doesn't need the built plugin; run it alone with `mvn test -Pintegration -Dtest=TestViewZooJdbcClient`.
 
+## Manual Tests
+
+Integration tests run Trino only on Linux, so filesystem storage under Trino on macOS is checked by hand. Install the plugin, add a catalog with `viewzoo.storage_type=filesystem` and `viewzoo.dir` set to an empty directory on case-insensitive APFS (the default), create each view `AS SELECT 1 AS x`, and confirm:
+
+- `s."a b\:*?<>|%"` and `s."café😀"` succeed, each writing one `s.<table>.json` file.
+- `s."ß"` succeeds, then `s."ss"` fails with `ALREADY_EXISTS`, then `CREATE OR REPLACE VIEW s."ß"` succeeds.
+- Table `"a/b"`, schema `"/tmp"`, a table in NFD form (`cafe` followed by U+0301) and a table of 90 CJK characters each fail with `INVALID_ARGUMENTS` and write no file anywhere.
+- A table of `ab` followed by 82 CJK characters, a 255-byte file name, succeeds.
+- `ALTER VIEW s."ß" RENAME TO s."x/y"` fails with `INVALID_ARGUMENTS`, and `s."ß"` still queries.
+- After copying any view file to `Upper.Case.json` and restarting Trino, `server.log` warns `Skipping file whose name is not a view name Trino can create`, and every view above still lists and queries.
+
 ## Code Style
 
 - IntelliJ IDEA defaults with 130-character line length
