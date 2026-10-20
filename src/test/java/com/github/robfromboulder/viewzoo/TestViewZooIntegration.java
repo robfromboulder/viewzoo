@@ -604,20 +604,21 @@ public class TestViewZooIntegration {
                     writeContainerFile(file, viewJson(statement, catalog, dir));
                 }
                 String stored = storedBehindView(file);
+                // a cached view would be refused by the cache check, never reaching storage
+                assertViewMissing(statement, catalog + ".behind.v");
                 assertFails(statement, "CREATE VIEW " + catalog + ".behind.v AS SELECT 2 AS x", "already exists");
                 assertEquals(storedBehindView(file), stored);
             } finally {
-                if (file == null) runPostgres("DELETE FROM viewzoo WHERE schema = 'behind'");
-                else removeContainerFile(file);
-                // behind.v is cached only if the create wrongly succeeded
+                // first, since storage cleanup can throw; behind.v is cached only if the create wrongly succeeded
                 dropViews(statement, catalog + ".template.v", catalog + ".behind.v");
+                if (file == null) runPostgres("DELETE FROM viewzoo WHERE schema = 'behind' AND view_name = 'v'");
+                else removeContainerFile(file);
             }
         }
     }
 
-    // the row in testjdbc when file is null
     private String storedBehindView(String file) throws Exception {
-        return (file == null) ? queryPostgres("SELECT definition FROM viewzoo WHERE schema = 'behind'") : readContainerFile(file);
+        return (file == null) ? queryPostgres("SELECT definition FROM viewzoo WHERE schema = 'behind' AND view_name = 'v'") : readContainerFile(file);
     }
 
     // information_schema.views reads every definition, so it fails where a listing of names would not
