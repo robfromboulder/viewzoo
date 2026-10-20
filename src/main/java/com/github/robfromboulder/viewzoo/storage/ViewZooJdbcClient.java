@@ -11,6 +11,7 @@ import io.trino.spi.connector.ConnectorViewDefinition;
 import io.trino.spi.connector.SchemaTableName;
 import io.trino.spi.connector.ViewNotFoundException;
 
+import java.io.IOException;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -21,9 +22,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 
+import static com.github.robfromboulder.viewzoo.storage.ViewZooStorageClient.isLoadable;
 import static io.trino.spi.StandardErrorCode.ALREADY_EXISTS;
 import static io.trino.spi.StandardErrorCode.GENERIC_INTERNAL_ERROR;
-import static java.util.Locale.ENGLISH;
 import static java.util.Objects.requireNonNull;
 
 public class ViewZooJdbcClient implements ViewZooStorageClient {
@@ -75,19 +76,11 @@ public class ViewZooJdbcClient implements ViewZooStorageClient {
                     log.warn("Skipping row whose name is not a view name Trino can create: %s.%s", schemaName, viewName);
                     continue;
                 }
-                ConnectorViewDefinition definition = null;
                 try {
-                    if (definitionText != null) definition = mapper.readValue(definitionText, ConnectorViewDefinition.class);
-                } catch (JsonProcessingException e) {
+                    views.put(new SchemaTableName(schemaName, viewName), parse(definitionText));
+                } catch (IOException e) {
                     log.warn("Skipping row whose definition is not a view definition: %s.%s: %s", schemaName, viewName, e.getMessage());
-                    continue;
                 }
-                // a NULL column and the JSON literal null both leave no definition
-                if (definition == null) {
-                    log.warn("Skipping row whose definition is not a view definition: %s.%s", schemaName, viewName);
-                    continue;
-                }
-                views.put(new SchemaTableName(schemaName, viewName), definition);
             }
             return views;
         } catch (SQLException e) {
@@ -137,9 +130,12 @@ public class ViewZooJdbcClient implements ViewZooStorageClient {
         }
     }
 
-    // Trino lowercases identifiers, so any other name would load as a view whose operations miss its row
-    private static boolean isLoadable(String name) {
-        return name != null && !name.isEmpty() && name.equals(name.toLowerCase(ENGLISH));
+    // a NULL column and the JSON literal null both parse without error to no definition
+    private ConnectorViewDefinition parse(String text) throws IOException {
+        if (text == null) throw new IOException("Definition is NULL");
+        ConnectorViewDefinition definition = mapper.readValue(text, ConnectorViewDefinition.class);
+        if (definition == null) throw new IOException("Definition is JSON null");
+        return definition;
     }
 
 }
