@@ -99,6 +99,56 @@ cd target/jacoco && java -jar jacococli.jar report unit.exec it.exec trino.exec 
 
 A missing `trino.exec` means the container agent didn't load.
 
+## Releasing
+
+Releases are built on Rob's Mac and published only when Rob asks for one. A release tag is the Trino version plus the next unused letter, starting at `a` (e.g. `483a`), and is never the bare version. Every command below assumes `VERSION` and `TAG` are set, e.g. `VERSION=483 TAG=483a`.
+
+1. Check the checkout. Each command must print nothing.
+
+   ```bash
+   git status --porcelain
+   git fetch origin && git rev-parse HEAD | grep -vx "$(git rev-parse origin/v$VERSION)"
+   git ls-remote --tags origin $TAG
+   ```
+
+2. Build and run every test.
+
+   ```bash
+   mvn clean package && mvn test -Pintegration
+   ```
+
+3. Name the artifact and compute its checksum.
+
+   ```bash
+   mkdir -p target/release/catalog
+   cp target/viewzoo-$VERSION.zip target/release/viewzoo-$TAG.zip
+   (cd target/release && shasum -a 256 viewzoo-$TAG.zip)
+   ```
+
+4. Install the zip into a clean Trino and confirm it creates and queries a view. The last command prints `"1"`. If the wait never ends, `docker logs viewzoo-release` shows why Trino didn't start.
+
+   ```bash
+   unzip -q target/release/viewzoo-$TAG.zip -d target/release
+   printf 'connector.name=viewzoo\nviewzoo.storage_type=filesystem\nviewzoo.dir=/home/trino\n' > target/release/catalog/viewzoo.properties
+   docker run -d --name viewzoo-release -v "$PWD/target/release/viewzoo-$VERSION:/usr/lib/trino/plugin/viewzoo" -v "$PWD/target/release/catalog:/etc/trino/catalog" trinodb/trino:$VERSION
+   until docker exec viewzoo-release trino --execute 'SELECT 1' >/dev/null 2>&1; do sleep 2; done
+   docker exec viewzoo-release trino --execute 'CREATE VIEW viewzoo.s.v AS SELECT 1 AS x'
+   docker exec viewzoo-release trino --execute 'SELECT x FROM viewzoo.s.v'
+   docker rm -f viewzoo-release
+   ```
+
+5. Create a draft release of the tested commit, putting the checksum from step 3 in the notes.
+
+   ```bash
+   gh release create $TAG target/release/viewzoo-$TAG.zip --draft --target "$(git rev-parse HEAD)" --title "ViewZoo $TAG" --notes "Plugin for Trino $VERSION. SHA-256 of viewzoo-$TAG.zip: <checksum>"
+   ```
+
+6. Give Rob the draft's URL, and publish only after Rob approves it. Publishing creates the tag.
+
+   ```bash
+   gh release edit $TAG --draft=false
+   ```
+
 ## Code Style
 
 - IntelliJ IDEA defaults with 130-character line length
