@@ -16,6 +16,7 @@ services:
     volumes:
       - ${PROJECT_ROOT}/target/viewzoo-483:/usr/lib/trino/plugin/viewzoo
       - ./trino/catalog:/etc/trino/catalog
+      - ${PROJECT_ROOT}/target/testfsmount:/var/viewzoo
     depends_on:
       postgres:
         condition: service_healthy
