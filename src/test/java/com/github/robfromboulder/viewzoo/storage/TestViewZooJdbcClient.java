@@ -10,9 +10,7 @@ import io.trino.spi.connector.ConnectorViewDefinition.ViewColumn;
 import io.trino.spi.connector.SchemaTableName;
 import io.trino.spi.connector.ViewNotFoundException;
 import io.trino.spi.type.TypeId;
-import org.testcontainers.DockerClientFactory;
 import org.testcontainers.postgresql.PostgreSQLContainer;
-import org.testng.SkipException;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
@@ -33,7 +31,6 @@ import java.util.Optional;
 import static io.trino.spi.StandardErrorCode.ALREADY_EXISTS;
 import static java.util.stream.Collectors.toMap;
 import static org.testng.Assert.assertEquals;
-import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertTrue;
 import static org.testng.Assert.expectThrows;
 
@@ -49,7 +46,6 @@ public class TestViewZooJdbcClient {
 
     @BeforeClass(groups = "integration")
     public void startPostgres() {
-        if (!DockerClientFactory.instance().isDockerAvailable()) throw new SkipException("Docker is not available");
         postgres = new PostgreSQLContainer("postgres:16");
         postgres.start();
         config = new ViewZooJdbcConfig().setJdbcUrl(postgres.getJdbcUrl()).setJdbcUser(postgres.getUsername()).setJdbcPassword(postgres.getPassword());
@@ -63,10 +59,7 @@ public class TestViewZooJdbcClient {
 
     @BeforeMethod(groups = "integration")
     public void setUp() throws SQLException {
-        try (Connection connection = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
-             Statement statement = connection.createStatement()) {
-            statement.execute("DROP TABLE IF EXISTS viewzoo");
-        }
+        executeSql("DROP TABLE IF EXISTS viewzoo");
         resources.clear();
         client = new TrackingJdbcClient();
     }
@@ -90,7 +83,7 @@ public class TestViewZooJdbcClient {
     }
 
     @Test(groups = "integration")
-    public void testGetViewsAfterReconnect() {
+    public void testConstructorKeepsExistingViews() {
         client.createView("s", "source", definition("SELECT 1 AS x"));
         client.createView("t", "target", definition("SELECT 2 AS x"));
         client = new TrackingJdbcClient();
@@ -147,13 +140,17 @@ public class TestViewZooJdbcClient {
 
     @Test(groups = "integration")
     public void testClosesResourcesOnParseFailure() throws SQLException {
-        try (Connection connection = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
-             Statement statement = connection.createStatement()) {
-            statement.execute("INSERT INTO viewzoo VALUES ('s', 'source', 'not json')");
-        }
+        executeSql("INSERT INTO viewzoo VALUES ('s', 'source', 'not json')");
         expectThrows(TrinoException.class, () -> client.getViews());
         assertTrue(resources.stream().anyMatch(ResultSet.class::isInstance));
         for (Object resource : resources) assertTrue(isClosed(resource), "Not closed: " + resource);
+    }
+
+    private void executeSql(String sql) throws SQLException {
+        try (Connection connection = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
+             Statement statement = connection.createStatement()) {
+            statement.execute(sql);
+        }
     }
 
     private void assertStored(Map<SchemaTableName, String> expectedSql) {

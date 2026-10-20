@@ -48,13 +48,17 @@ mvn test -Pintegration
 
 ## Integration Tests
 
-Integration tests use Docker Compose to run PostgreSQL and Trino with the viewzoo connector.
+Integration tests are in the TestNG `integration` group, run only with `-Pintegration`, and need Docker running.
+
+`TestViewZooIntegration` uses Docker Compose to run PostgreSQL and Trino with the viewzoo connector.
 
 - **Location**: `src/test/docker/` contains docker-compose.yml and Trino catalog configs
 - **Catalogs**: Tests run against both `testjdbc` (PostgreSQL storage) and `testfs` (filesystem storage)
 - **Ports**: Uses non-standard port 7721 for Trino to avoid conflicts; PostgreSQL is internal only
-- **Requirements**: Docker must be running; plugin must be built first with `mvn clean package`
+- **Requirements**: Plugin must be built first with `mvn clean package`
 - **Environment**: Tests set `PROJECT_ROOT` env var to locate the built plugin
+
+`TestViewZooJdbcClient` starts its own PostgreSQL with Testcontainers and doesn't need the built plugin; run it alone with `mvn test -Pintegration -Dtest=TestViewZooJdbcClient`.
 
 ## Code Style
 
