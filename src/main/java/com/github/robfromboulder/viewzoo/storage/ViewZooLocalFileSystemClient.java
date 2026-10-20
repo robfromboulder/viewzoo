@@ -52,8 +52,11 @@ public class ViewZooLocalFileSystemClient implements ViewZooStorageClient {
                 ConnectorViewDefinition def = mapper.readValue(f, ConnectorViewDefinition.class);
                 String filename = f.getName();
                 String[] name_pieces = filename.split("\\.");
-                if ((name_pieces.length == 3) && name_pieces[2].equals("json"))
+                if ((name_pieces.length == 3) && name_pieces[2].equals("json")) {
+                    if (!isStorable(name_pieces[0]) || !isStorable(name_pieces[1]) || filename.getBytes(UTF_8).length > MAX_FILE_NAME_BYTES)
+                        throw new TrinoException(CONFIGURATION_INVALID, "View file name not supported by filesystem storage, rename or remove it: " + f);
                     views.put(new SchemaTableName(name_pieces[0], name_pieces[1]), def);
+                }
             } catch (IOException e) {
                 throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to read file: " + f);
             }
@@ -104,16 +107,21 @@ public class ViewZooLocalFileSystemClient implements ViewZooStorageClient {
         }
     }
 
-    // '/' and NUL are the only characters Linux and macOS forbid in a filename; macOS filesystems ignore normalization
-    // differences, so only NFC names are accepted to keep distinct views from sharing one file
     private static void validateName(String schema, String table) {
-        if (schema.indexOf('/') >= 0 || schema.indexOf('\0') >= 0 || !Normalizer.isNormalized(schema, Normalizer.Form.NFC)) {
+        if (!isStorable(schema)) {
             throw new TrinoException(INVALID_ARGUMENTS, "Schema name not supported by filesystem storage: " + schema);
-        } else if (table.indexOf('/') >= 0 || table.indexOf('\0') >= 0 || !Normalizer.isNormalized(table, Normalizer.Form.NFC)) {
+        } else if (!isStorable(table)) {
             throw new TrinoException(INVALID_ARGUMENTS, "Table name not supported by filesystem storage: " + table);
         } else if (fileName(schema, table).getBytes(UTF_8).length > MAX_FILE_NAME_BYTES) {
             throw new TrinoException(INVALID_ARGUMENTS, "View name too long for filesystem storage: " + new SchemaTableName(schema, table));
         }
+    }
+
+    // '/' and NUL are the only characters Linux and macOS forbid in a filename. macOS filesystems ignore normalization and
+    // case differences, so only NFC, case-folded names are accepted to keep distinct views from sharing one file.
+    private static boolean isStorable(String name) {
+        return name.indexOf('/') < 0 && name.indexOf('\0') < 0 && Normalizer.isNormalized(name, Normalizer.Form.NFC)
+                && name.codePoints().allMatch(c -> Character.toLowerCase(Character.toUpperCase(c)) == c);
     }
 
     private static String fileName(String schema, String table) {

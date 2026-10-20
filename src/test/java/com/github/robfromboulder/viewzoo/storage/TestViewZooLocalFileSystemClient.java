@@ -25,6 +25,7 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 import static io.trino.spi.StandardErrorCode.ALREADY_EXISTS;
+import static io.trino.spi.StandardErrorCode.CONFIGURATION_INVALID;
 import static io.trino.spi.StandardErrorCode.INVALID_ARGUMENTS;
 import static java.util.stream.Collectors.toSet;
 import static org.testng.Assert.assertEquals;
@@ -144,6 +145,23 @@ public class TestViewZooLocalFileSystemClient {
         assertRejected(() -> client.createView("a\u0000b", "t", DEFINITION));
         assertRejected(() -> client.createView("s", "a\u0000b", DEFINITION));
         assertEquals(files(), Set.of());
+    }
+
+    @Test
+    public void testUnfoldedNameRejected() throws IOException {
+        // final sigma folds to σ, so case-insensitive filesystems store both in one file
+        client.createView("s", "σ", DEFINITION);
+        assertRejected(() -> client.createView("s", "ς", DEFINITION));
+        assertRejected(() -> client.createView("ς", "t", DEFINITION));
+        assertRejected(() -> client.renameView("s", "σ", "s", "ς"));
+        assertEquals(files(), Set.of("views/s.σ.json"));
+    }
+
+    @Test
+    public void testUnsupportedFileNameFailsLoad() throws IOException {
+        Files.writeString(dir.resolve("s.ς.json"), ViewZooStorageClientProvider.createObjectMapper().writeValueAsString(DEFINITION));
+        TrinoException e = expectThrows(TrinoException.class, () -> newClient().getViews());
+        assertEquals(e.getErrorCode(), CONFIGURATION_INVALID.toErrorCode());
     }
 
     @Test

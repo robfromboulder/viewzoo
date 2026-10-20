@@ -288,7 +288,7 @@ public class TestViewZooIntegration {
                     assertViewMissing(statement, inSchema);
                     assertViewMissing(statement, renamed);
                 } finally {
-                    dropViews(inSchema, inTable, renamed);
+                    dropViews(statement, inSchema, inTable, renamed);
                 }
             }
 
@@ -297,7 +297,7 @@ public class TestViewZooIntegration {
                 statement.execute("CREATE VIEW " + catalog + ".chars.\"MiXeD\" AS SELECT 1 AS x");
                 assertSingleValue(statement, catalog + ".chars.mixed");
             } finally {
-                dropViews(catalog + ".chars.mixed");
+                dropViews(statement, catalog + ".chars.mixed");
             }
         }
     }
@@ -337,7 +337,7 @@ public class TestViewZooIntegration {
                         }
                     }
                 } finally {
-                    dropViews(view);
+                    dropViews(statement, view);
                 }
             }
         }
@@ -355,7 +355,13 @@ public class TestViewZooIntegration {
         try {
             restartWithViews(catalog, source, slashTarget);
         } finally {
-            dropViews(views.toArray(String[]::new));
+            // fresh connection, since the restart drops any that were open
+            try (Connection connection = DriverManager.getConnection(TRINO_JDBC_URL, TRINO_USER, null);
+                 Statement statement = connection.createStatement()) {
+                dropViews(statement, views.toArray(String[]::new));
+            } catch (SQLException e) {
+                System.err.println("Failed to connect to drop views: " + e.getMessage());
+            }
         }
     }
 
@@ -427,19 +433,15 @@ public class TestViewZooIntegration {
         }
     }
 
-    // best effort, so a failed assertion doesn't leave views behind for later tests
-    private static void dropViews(String... views) {
-        try (Connection connection = DriverManager.getConnection(TRINO_JDBC_URL, TRINO_USER, null);
-             Statement statement = connection.createStatement()) {
-            for (String view : views) {
-                try {
-                    statement.execute("DROP VIEW IF EXISTS " + view);
-                } catch (SQLException e) {
-                    // ignore, keep dropping the rest
-                }
+    // best effort, so a failed assertion doesn't leave views behind for later tests; reports rather than throws so the
+    // original failure isn't masked
+    private static void dropViews(Statement statement, String... views) {
+        for (String view : views) {
+            try {
+                statement.execute("DROP VIEW IF EXISTS " + view);
+            } catch (SQLException e) {
+                System.err.println("Failed to drop view " + view + ": " + e.getMessage());
             }
-        } catch (SQLException e) {
-            // ignore, Trino unavailable
         }
     }
 
