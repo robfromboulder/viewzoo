@@ -10,6 +10,7 @@ import io.trino.spi.connector.SchemaTableName;
 import io.trino.spi.connector.ViewNotFoundException;
 import io.trino.spi.type.TypeId;
 import org.testng.Assert.ThrowingRunnable;
+import org.testng.SkipException;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.DataProvider;
@@ -25,7 +26,6 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 import static io.trino.spi.StandardErrorCode.ALREADY_EXISTS;
-import static io.trino.spi.StandardErrorCode.CONFIGURATION_INVALID;
 import static io.trino.spi.StandardErrorCode.INVALID_ARGUMENTS;
 import static java.util.stream.Collectors.toSet;
 import static org.testng.Assert.assertEquals;
@@ -148,20 +148,32 @@ public class TestViewZooLocalFileSystemClient {
     }
 
     @Test
-    public void testUnfoldedNameRejected() throws IOException {
-        // final sigma folds to σ, so case-insensitive filesystems store both in one file
-        client.createView("s", "σ", DEFINITION);
-        assertRejected(() -> client.createView("s", "ς", DEFINITION));
-        assertRejected(() -> client.createView("ς", "t", DEFINITION));
-        assertRejected(() -> client.renameView("s", "σ", "s", "ς"));
-        assertEquals(files(), Set.of("views/s.σ.json"));
+    public void testCaseInsensitiveCollisionRejected() throws IOException {
+        Files.writeString(dir.resolve("S.T.json"), "other");
+        if (!Files.exists(dir.resolve("s.t.json"))) throw new SkipException("filesystem is case-sensitive");
+        TrinoException e = expectThrows(TrinoException.class, () -> client.createView("s", "t", DEFINITION));
+        assertEquals(e.getErrorCode(), ALREADY_EXISTS.toErrorCode());
+        client.createView("s", "source", DEFINITION);
+        e = expectThrows(TrinoException.class, () -> client.renameView("s", "source", "s", "t"));
+        assertEquals(e.getErrorCode(), ALREADY_EXISTS.toErrorCode());
+        assertEquals(Files.readString(dir.resolve("S.T.json")), "other");
+        assertEquals(files(), Set.of("views/S.T.json", "views/s.source.json"));
     }
 
     @Test
-    public void testUnsupportedFileNameFailsLoad() throws IOException {
-        Files.writeString(dir.resolve("s.ς.json"), ViewZooStorageClientProvider.createObjectMapper().writeValueAsString(DEFINITION));
-        TrinoException e = expectThrows(TrinoException.class, () -> newClient().getViews());
-        assertEquals(e.getErrorCode(), CONFIGURATION_INVALID.toErrorCode());
+    public void testReplaceView() throws IOException {
+        client.createView("s", "t", DEFINITION);
+        client.createView("s", "t", DEFINITION);
+        assertEquals(files(), Set.of("views/s.t.json"));
+    }
+
+    @Test
+    public void testMalformedFileNamesSkipped() throws IOException {
+        for (String name : List.of("s..json", ".t.json", "a.b.c.json", "x.json")) {
+            Files.writeString(dir.resolve(name), "not json");
+        }
+        client.createView("s", "t", DEFINITION);
+        assertEquals(newClient().getViews().keySet(), Set.of(new SchemaTableName("s", "t")));
     }
 
     @Test

@@ -48,15 +48,10 @@ public class ViewZooLocalFileSystemClient implements ViewZooStorageClient {
         if (!dir.canRead()) throw new TrinoException(CONFIGURATION_INVALID, "Directory is not readable: " + dir);
         if (!dir.canWrite()) throw new TrinoException(CONFIGURATION_INVALID, "Directory is not writable: " + dir);
         for (File f : Stream.of(requireNonNull(dir.listFiles())).filter(f -> !f.isHidden() && f.getName().endsWith(".json")).toList()) {
+            String[] name_pieces = f.getName().split("\\.", -1);
+            if ((name_pieces.length != 3) || name_pieces[0].isEmpty() || name_pieces[1].isEmpty()) continue;
             try {
-                ConnectorViewDefinition def = mapper.readValue(f, ConnectorViewDefinition.class);
-                String filename = f.getName();
-                String[] name_pieces = filename.split("\\.");
-                if ((name_pieces.length == 3) && name_pieces[2].equals("json")) {
-                    if (!isStorable(name_pieces[0]) || !isStorable(name_pieces[1]) || filename.getBytes(UTF_8).length > MAX_FILE_NAME_BYTES)
-                        throw new TrinoException(CONFIGURATION_INVALID, "View file name not supported by filesystem storage, rename or remove it: " + f);
-                    views.put(new SchemaTableName(name_pieces[0], name_pieces[1]), def);
-                }
+                views.put(new SchemaTableName(name_pieces[0], name_pieces[1]), mapper.readValue(f, ConnectorViewDefinition.class));
             } catch (IOException e) {
                 throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to read file: " + f);
             }
@@ -69,6 +64,8 @@ public class ViewZooLocalFileSystemClient implements ViewZooStorageClient {
         validateName(schema, table);
         Path path = viewPath(schema, table);
         try {
+            if (Files.exists(path) && !isExactFile(path))
+                throw new TrinoException(ALREADY_EXISTS, "View conflicts with an existing view file in filesystem storage: " + new SchemaTableName(schema, table));
             Files.writeString(path, mapper.writeValueAsString(definition));
         } catch (IOException e) {
             throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to write file: " + path);
@@ -117,11 +114,18 @@ public class ViewZooLocalFileSystemClient implements ViewZooStorageClient {
         }
     }
 
-    // '/' and NUL are the only characters Linux and macOS forbid in a filename. macOS filesystems ignore normalization and
-    // case differences, so only NFC, case-folded names are accepted to keep distinct views from sharing one file.
+    // '/' and NUL are the only characters Linux and macOS forbid in a filename; NFC keeps a name identical on Linux and
+    // macOS, whose filesystems ignore normalization differences
     private static boolean isStorable(String name) {
-        return name.indexOf('/') < 0 && name.indexOf('\0') < 0 && Normalizer.isNormalized(name, Normalizer.Form.NFC)
-                && name.codePoints().allMatch(c -> Character.toLowerCase(Character.toUpperCase(c)) == c);
+        return name.indexOf('/') < 0 && name.indexOf('\0') < 0 && Normalizer.isNormalized(name, Normalizer.Form.NFC);
+    }
+
+    // false when a case-insensitive filesystem resolved the path to a file stored under a different name
+    private boolean isExactFile(Path path) throws IOException {
+        String name = path.getFileName().toString();
+        try (Stream<Path> files = Files.list(dir.toPath())) {
+            return files.anyMatch(p -> p.getFileName().toString().equals(name));
+        }
     }
 
     private static String fileName(String schema, String table) {
