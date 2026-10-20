@@ -4,6 +4,7 @@ package com.github.robfromboulder.viewzoo.storage;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.robfromboulder.viewzoo.config.ViewZooFilesystemConfig;
+import io.airlift.log.Logger;
 import io.trino.spi.TrinoException;
 import io.trino.spi.connector.ConnectorViewDefinition;
 import io.trino.spi.connector.SchemaTableName;
@@ -14,6 +15,7 @@ import java.io.IOException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
+import java.nio.file.LinkOption;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.text.Normalizer;
@@ -25,10 +27,13 @@ import static io.trino.spi.StandardErrorCode.ALREADY_EXISTS;
 import static io.trino.spi.StandardErrorCode.CONFIGURATION_INVALID;
 import static io.trino.spi.StandardErrorCode.GENERIC_INTERNAL_ERROR;
 import static io.trino.spi.StandardErrorCode.INVALID_ARGUMENTS;
+import static java.util.Locale.ENGLISH;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Objects.requireNonNull;
 
 public class ViewZooLocalFileSystemClient implements ViewZooStorageClient {
+
+    private static final Logger log = Logger.get(ViewZooLocalFileSystemClient.class);
 
     // Linux's limit, enforced on macOS too so a view directory written on either loads on both
     private static final int MAX_FILE_NAME_BYTES = 255;
@@ -49,9 +54,13 @@ public class ViewZooLocalFileSystemClient implements ViewZooStorageClient {
         if (!dir.canWrite()) throw new TrinoException(CONFIGURATION_INVALID, "Directory is not writable: " + dir);
         for (File f : Stream.of(requireNonNull(dir.listFiles())).filter(f -> !f.isHidden() && f.getName().endsWith(".json")).toList()) {
             String[] name_pieces = f.getName().split("\\.", -1);
-            if ((name_pieces.length != 3) || name_pieces[0].isEmpty() || name_pieces[1].isEmpty()) continue;
+            if ((name_pieces.length != 3) || !isLoadable(name_pieces[0]) || !isLoadable(name_pieces[1])) {
+                log.warn("Skipping file whose name is not a view name Trino can create: %s", f);
+                continue;
+            }
             try {
-                views.put(new SchemaTableName(name_pieces[0], name_pieces[1]), mapper.readValue(f, ConnectorViewDefinition.class));
+                ConnectorViewDefinition def = mapper.readValue(f, ConnectorViewDefinition.class);
+                views.put(new SchemaTableName(name_pieces[0], name_pieces[1]), def);
             } catch (IOException e) {
                 throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to read file: " + f);
             }
@@ -64,8 +73,10 @@ public class ViewZooLocalFileSystemClient implements ViewZooStorageClient {
         validateName(schema, table);
         Path path = viewPath(schema, table);
         try {
-            if (Files.exists(path) && !isExactFile(path))
-                throw new TrinoException(ALREADY_EXISTS, "View conflicts with an existing view file in filesystem storage: " + new SchemaTableName(schema, table));
+            if (Files.exists(path) && !isExactFile(path)) {
+                SchemaTableName stn = new SchemaTableName(schema, table);
+                throw new TrinoException(ALREADY_EXISTS, "View conflicts with an existing file in filesystem storage: " + stn);
+            }
             Files.writeString(path, mapper.writeValueAsString(definition));
         } catch (IOException e) {
             throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to write file: " + path);
@@ -110,7 +121,7 @@ public class ViewZooLocalFileSystemClient implements ViewZooStorageClient {
         } else if (!isStorable(table)) {
             throw new TrinoException(INVALID_ARGUMENTS, "Table name not supported by filesystem storage: " + table);
         } else if (fileName(schema, table).getBytes(UTF_8).length > MAX_FILE_NAME_BYTES) {
-            throw new TrinoException(INVALID_ARGUMENTS, "View name too long for filesystem storage: " + new SchemaTableName(schema, table));
+            throw new TrinoException(INVALID_ARGUMENTS, "View name too long for filesystem storage: " + schema + "." + table);
         }
     }
 
@@ -120,12 +131,14 @@ public class ViewZooLocalFileSystemClient implements ViewZooStorageClient {
         return name.indexOf('/') < 0 && name.indexOf('\0') < 0 && Normalizer.isNormalized(name, Normalizer.Form.NFC);
     }
 
+    // Trino lowercases identifiers, so any other name would load as a view whose operations miss its file
+    private static boolean isLoadable(String name) {
+        return !name.isEmpty() && name.equals(name.toLowerCase(ENGLISH)) && isStorable(name);
+    }
+
     // false when a case-insensitive filesystem resolved the path to a file stored under a different name
-    private boolean isExactFile(Path path) throws IOException {
-        String name = path.getFileName().toString();
-        try (Stream<Path> files = Files.list(dir.toPath())) {
-            return files.anyMatch(p -> p.getFileName().toString().equals(name));
-        }
+    private static boolean isExactFile(Path path) throws IOException {
+        return path.toRealPath(LinkOption.NOFOLLOW_LINKS).getFileName().equals(path.getFileName());
     }
 
     private static String fileName(String schema, String table) {
@@ -140,7 +153,7 @@ public class ViewZooLocalFileSystemClient implements ViewZooStorageClient {
         } catch (InvalidPathException e) {
             // fall through to rejection
         }
-        throw new TrinoException(INVALID_ARGUMENTS, "View name not supported by filesystem storage: " + new SchemaTableName(schema, table));
+        throw new TrinoException(INVALID_ARGUMENTS, "View name not supported by filesystem storage: " + schema + "." + table);
     }
 
 }
