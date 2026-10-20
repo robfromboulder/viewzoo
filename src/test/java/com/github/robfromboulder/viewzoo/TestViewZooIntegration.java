@@ -584,6 +584,31 @@ public class TestViewZooIntegration {
         }
     }
 
+    // the view is written to storage after the cache loaded, as another coordinator or an outside change would
+    @Test(groups = "integration", dataProvider = "catalogs")
+    public void testCreateRefusesViewAddedToStorage(String catalog) throws Exception {
+        String dir = catalog.equals("testfs") ? "/home/trino" : MOUNT_DIR;
+        String file = dir + "/behind.v.json";
+        try (Connection connection = DriverManager.getConnection(TRINO_JDBC_URL, TRINO_USER, null);
+             Statement statement = connection.createStatement()) {
+            try {
+                if (catalog.equals("testjdbc")) {
+                    statement.execute("CREATE OR REPLACE VIEW testjdbc.template.v AS SELECT 1 AS x");
+                    runPostgres("INSERT INTO viewzoo SELECT 'behind', 'v', definition FROM viewzoo WHERE schema = 'template' AND view_name = 'v'");
+                } else {
+                    writeContainerFile(file, viewJson(statement, catalog, dir));
+                }
+                String stored = catalog.equals("testjdbc") ? queryPostgres("SELECT definition FROM viewzoo WHERE schema = 'behind'") : readContainerFile(file);
+                assertFails(statement, "CREATE VIEW " + catalog + ".behind.v AS SELECT 2 AS x", "already exists");
+                assertEquals(catalog.equals("testjdbc") ? queryPostgres("SELECT definition FROM viewzoo WHERE schema = 'behind'") : readContainerFile(file), stored);
+            } finally {
+                if (catalog.equals("testjdbc")) runPostgres("DELETE FROM viewzoo WHERE schema = 'behind'");
+                else removeContainerFile(file);
+                dropViews(statement, catalog + ".template.v");
+            }
+        }
+    }
+
     // information_schema.views reads every definition, so it fails where a listing of names would not
     private static List<String> listedViews(Statement statement, String catalog, String schema) throws SQLException {
         List<String> views = new ArrayList<>();
@@ -673,6 +698,11 @@ public class TestViewZooIntegration {
 
     private void runPostgres(String sql) throws Exception {
         runCapture(null, "docker", "compose", "exec", "-T", "postgres", "psql", "-U", "postgres", "-v", "ON_ERROR_STOP=1", "-c", sql);
+    }
+
+    // unaligned and without headers, so the output is the bare values
+    private String queryPostgres(String sql) throws Exception {
+        return runCapture(null, "docker", "compose", "exec", "-T", "postgres", "psql", "-U", "postgres", "-v", "ON_ERROR_STOP=1", "-tAc", sql);
     }
 
     // Trino logs to stderr, which only some Compose versions merge into the stdout of compose logs

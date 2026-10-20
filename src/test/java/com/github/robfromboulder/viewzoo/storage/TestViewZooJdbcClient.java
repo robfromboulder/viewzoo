@@ -75,29 +75,37 @@ public class TestViewZooJdbcClient {
 
     @Test(groups = "integration")
     public void testCreateView() {
-        client.createView("s", "source", definition("SELECT 1 AS x"));
+        client.createView("s", "source", definition("SELECT 1 AS x"), false);
         assertStored(Map.of(SOURCE, "SELECT 1 AS x"));
     }
 
     @Test(groups = "integration")
     public void testCreateReplacesView() {
-        client.createView("s", "source", definition("SELECT 1 AS x"));
-        client.createView("s", "source", definition("SELECT 2 AS x"));
+        client.createView("s", "source", definition("SELECT 1 AS x"), false);
+        client.createView("s", "source", definition("SELECT 2 AS x"), true);
         assertStored(Map.of(SOURCE, "SELECT 2 AS x"));
     }
 
     @Test(groups = "integration")
+    public void testCreateDoesNotOverwriteExistingView() {
+        client.createView("s", "source", definition("SELECT 1 AS x"), false);
+        TrinoException e = expectThrows(TrinoException.class, () -> client.createView("s", "source", definition("SELECT 2 AS x"), false));
+        assertEquals(e.getErrorCode(), ALREADY_EXISTS.toErrorCode());
+        assertStored(Map.of(SOURCE, "SELECT 1 AS x"));
+    }
+
+    @Test(groups = "integration")
     public void testConstructorKeepsExistingViews() {
-        client.createView("s", "source", definition("SELECT 1 AS x"));
-        client.createView("t", "target", definition("SELECT 2 AS x"));
+        client.createView("s", "source", definition("SELECT 1 AS x"), false);
+        client.createView("t", "target", definition("SELECT 2 AS x"), false);
         client = new TrackingJdbcClient();
         assertStored(Map.of(SOURCE, "SELECT 1 AS x", TARGET, "SELECT 2 AS x"));
     }
 
     @Test(groups = "integration")
     public void testDropView() {
-        client.createView("s", "source", definition("SELECT 1 AS x"));
-        client.createView("t", "target", definition("SELECT 2 AS x"));
+        client.createView("s", "source", definition("SELECT 1 AS x"), false);
+        client.createView("t", "target", definition("SELECT 2 AS x"), false);
         client.dropView("s", "source");
         assertStored(Map.of(TARGET, "SELECT 2 AS x"));
     }
@@ -110,15 +118,15 @@ public class TestViewZooJdbcClient {
 
     @Test(groups = "integration")
     public void testRenameView() {
-        client.createView("s", "source", definition("SELECT 1 AS x"));
+        client.createView("s", "source", definition("SELECT 1 AS x"), false);
         client.renameView("s", "source", "t", "target");
         assertStored(Map.of(TARGET, "SELECT 1 AS x"));
     }
 
     @Test(groups = "integration")
     public void testRenameDoesNotOverwriteExistingView() {
-        client.createView("s", "source", definition("SELECT 1 AS x"));
-        client.createView("t", "target", definition("SELECT 2 AS x"));
+        client.createView("s", "source", definition("SELECT 1 AS x"), false);
+        client.createView("t", "target", definition("SELECT 2 AS x"), false);
         TrinoException e = expectThrows(TrinoException.class, () -> client.renameView("s", "source", "t", "target"));
         assertEquals(e.getErrorCode(), ALREADY_EXISTS.toErrorCode());
         assertStored(Map.of(SOURCE, "SELECT 1 AS x", TARGET, "SELECT 2 AS x"));
@@ -132,8 +140,8 @@ public class TestViewZooJdbcClient {
 
     @Test(groups = "integration")
     public void testClosesResources() throws SQLException {
-        client.createView("s", "source", definition("SELECT 1 AS x"));
-        client.createView("t", "target", definition("SELECT 2 AS x"));
+        client.createView("s", "source", definition("SELECT 1 AS x"), false);
+        client.createView("t", "target", definition("SELECT 2 AS x"), false);
         client.getViews();
         expectThrows(TrinoException.class, () -> client.renameView("s", "source", "t", "target"));
         expectThrows(ViewNotFoundException.class, () -> client.renameView("s", "missing", "t", "other"));
@@ -152,7 +160,7 @@ public class TestViewZooJdbcClient {
 
     @Test(groups = "integration")
     public void testClosesResourcesOnReadFailure() throws SQLException {
-        client.createView("s", "source", definition("SELECT 1 AS x"));
+        client.createView("s", "source", definition("SELECT 1 AS x"), false);
         failReads = true;
         assertKeepsCause(expectThrows(TrinoException.class, () -> client.getViews()));
         assertTrue(resources.stream().anyMatch(ResultSet.class::isInstance));
@@ -166,7 +174,7 @@ public class TestViewZooJdbcClient {
 
     @Test(groups = "integration", dataProvider = "unreadableDefinitions")
     public void testUnreadableRowSkipped(String definition) throws SQLException {
-        client.createView("s", "source", definition("SELECT 1 AS x"));
+        client.createView("s", "source", definition("SELECT 1 AS x"), false);
         insertRow("s", "bad", definition);
         assertStored(Map.of(SOURCE, "SELECT 1 AS x"));
     }
@@ -179,7 +187,7 @@ public class TestViewZooJdbcClient {
     // an uppercase row would load under the lowercase name of the view beside it
     @Test(groups = "integration", dataProvider = "unloadableNames")
     public void testUnloadableNameSkipped(String schema, String view) throws Exception {
-        client.createView("s", "source", definition("SELECT 1 AS x"));
+        client.createView("s", "source", definition("SELECT 1 AS x"), false);
         insertRow(schema, view, ViewZooStorageClientProvider.createObjectMapper().writeValueAsString(definition("SELECT 2 AS x")));
         assertStored(Map.of(SOURCE, "SELECT 1 AS x"));
     }
@@ -188,7 +196,7 @@ public class TestViewZooJdbcClient {
     public void testStorageFailuresKeepCause() throws SQLException {
         executeSql("DROP TABLE viewzoo");
         assertKeepsCause(expectThrows(TrinoException.class, () -> client.getViews()));
-        assertKeepsCause(expectThrows(TrinoException.class, () -> client.createView("s", "source", definition("SELECT 1 AS x"))));
+        assertKeepsCause(expectThrows(TrinoException.class, () -> client.createView("s", "source", definition("SELECT 1 AS x"), false)));
         assertKeepsCause(expectThrows(TrinoException.class, () -> client.dropView("s", "source")));
     }
 

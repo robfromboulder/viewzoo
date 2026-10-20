@@ -67,7 +67,7 @@ public class ViewZooLocalFileSystemClient implements ViewZooStorageClient {
     }
 
     @Override
-    public void createView(String schema, String table, ConnectorViewDefinition definition) {
+    public void createView(String schema, String table, ConnectorViewDefinition definition, boolean replace) {
         validateName(schema, table);
         Path path = viewPath(schema, table);
         requireNoConflictingFile(path, schema, table);

@@ -13,7 +13,7 @@ public interface ViewZooStorageClient {
 
     Map<SchemaTableName, ConnectorViewDefinition> getViews();
 
-    void createView(String schema, String table, ConnectorViewDefinition definition);
+    void createView(String schema, String table, ConnectorViewDefinition definition, boolean replace);
 
     void dropView(String schema, String table);
 
