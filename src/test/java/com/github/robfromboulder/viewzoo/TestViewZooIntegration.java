@@ -7,10 +7,11 @@ import org.testng.annotations.BeforeClass;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
-import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
@@ -24,7 +25,6 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
@@ -494,7 +494,8 @@ public class TestViewZooIntegration {
                 assertViewMissing(statement, catalog + "." + quote(nfd) + ".t");
                 assertViewMissing(statement, catalog + ".\"café\".t");
             }
-            String logs = run(null, false, "docker", "compose", "logs", "trino");
+            // Trino logs to stderr, which only some Compose versions merge into the stdout of compose logs
+            String logs = runCapture(null, "sh", "-c", "docker compose logs trino 2>&1");
             for (String file : skipped) {
                 assertTrue(logs.contains("Skipping file whose name is not a view name Trino can create: " + dir + "/" + file), "Expected warning for " + file);
             }
@@ -580,34 +581,46 @@ public class TestViewZooIntegration {
     private String runContainer(String stdin, String... command) throws Exception {
         List<String> args = new ArrayList<>(List.of("docker", "compose", "exec", "-T", "trino"));
         args.addAll(List.of(command));
-        return run(stdin, false, args.toArray(String[]::new));
+        return runCapture(stdin, args.toArray(String[]::new));
     }
 
+    // echoes merged output line by line, so slow docker commands show progress
     private void runCommand(String... command) throws Exception {
-        run(null, true, command);
+        Process process = processBuilder(command).redirectErrorStream(true).start();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                System.out.println(line);
+            }
+        }
+        int exitCode = process.waitFor();
+        if (exitCode != 0) throw new RuntimeException("Command failed with exit code " + exitCode + ": " + String.join(" ", command));
     }
 
-    // returns stdout only, so warnings on stderr can't corrupt captured output
-    private String run(String stdin, boolean echo, String... command) throws Exception {
+    // returns stdout alone, so stderr warnings can't corrupt captured output; a temp file holds stderr without a reader thread
+    private String runCapture(String stdin, String... command) throws Exception {
+        Path errors = Files.createTempFile("viewzoo-stderr", ".txt");
+        try {
+            Process process = processBuilder(command).redirectError(errors.toFile()).start();
+            try (OutputStream in = process.getOutputStream()) {
+                if (stdin != null) in.write(stdin.getBytes(UTF_8));
+            } catch (IOException e) {
+                // the command exited without reading stdin; its exit code and stderr say why
+            }
+            String output = new String(process.getInputStream().readAllBytes(), UTF_8);
+            int exitCode = process.waitFor();
+            if (exitCode != 0) throw new RuntimeException("Command failed with exit code " + exitCode + ": " + String.join(" ", command) + "\n" + output + Files.readString(errors));
+            return output;
+        } finally {
+            Files.deleteIfExists(errors);
+        }
+    }
+
+    private ProcessBuilder processBuilder(String... command) {
         ProcessBuilder processBuilder = new ProcessBuilder(command);
         processBuilder.directory(dockerDir);
         processBuilder.environment().put("PROJECT_ROOT", projectDir.getAbsolutePath());
-        Process process = processBuilder.start();
-        CompletableFuture<String> error = CompletableFuture.supplyAsync(() -> {
-            try {
-                return new String(process.getErrorStream().readAllBytes(), UTF_8);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        });
-        try (OutputStream in = process.getOutputStream()) {
-            if (stdin != null) in.write(stdin.getBytes(UTF_8));
-        }
-        String output = new String(process.getInputStream().readAllBytes(), UTF_8);
-        int exitCode = process.waitFor();
-        if (echo) System.out.print(output + error.get());
-        if (exitCode != 0) throw new RuntimeException("Command failed with exit code " + exitCode + ": " + String.join(" ", command) + "\n" + error.get());
-        return output;
+        return processBuilder;
     }
 
     private void waitForTrino() throws Exception {
