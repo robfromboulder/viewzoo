@@ -127,10 +127,11 @@ public class ViewZooLocalFileSystemClient implements ViewZooStorageClient {
         try {
             deleteFile(source);
         } catch (IOException e) {
-            // the target is a second link to the source, so removing it restores storage without losing the view
             TrinoException failure = new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to delete file: " + source + ": " + e.getMessage(), e);
+            // the target is removable only while it is still a second link to a surviving source; a failed delete may
+            // have removed the source anyway, or another writer may have replaced the target
             try {
-                deleteFile(target);
+                if (Files.exists(source) && Files.isSameFile(source, target)) deleteFile(target);
             } catch (IOException rollback) {
                 failure.addSuppressed(rollback);
             }
