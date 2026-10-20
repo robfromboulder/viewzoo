@@ -584,29 +584,37 @@ public class TestViewZooIntegration {
         }
     }
 
+    // every catalog with its view directory, which testjdbc lacks
+    @DataProvider(name = "storages")
+    public Object[][] storageProvider() {
+        return Stream.concat(Stream.<Object[]>of(new Object[]{"testjdbc", null}), Stream.of(fsCatalogProvider())).toArray(Object[][]::new);
+    }
+
     // the view is written to storage after the cache loaded, as another coordinator or an outside change would
-    @Test(groups = "integration", dataProvider = "catalogs")
-    public void testCreateRefusesViewAddedToStorage(String catalog) throws Exception {
-        String dir = catalog.equals("testfs") ? "/home/trino" : MOUNT_DIR;
-        String file = dir + "/behind.v.json";
+    @Test(groups = "integration", dataProvider = "storages")
+    public void testCreateRefusesViewAddedToStorage(String catalog, String dir) throws Exception {
         try (Connection connection = DriverManager.getConnection(TRINO_JDBC_URL, TRINO_USER, null);
              Statement statement = connection.createStatement()) {
             try {
-                if (catalog.equals("testjdbc")) {
+                if (dir == null) {
                     statement.execute("CREATE OR REPLACE VIEW testjdbc.template.v AS SELECT 1 AS x");
                     runPostgres("INSERT INTO viewzoo SELECT 'behind', 'v', definition FROM viewzoo WHERE schema = 'template' AND view_name = 'v'");
                 } else {
-                    writeContainerFile(file, viewJson(statement, catalog, dir));
+                    writeContainerFile(dir + "/behind.v.json", viewJson(statement, catalog, dir));
                 }
-                String stored = catalog.equals("testjdbc") ? queryPostgres("SELECT definition FROM viewzoo WHERE schema = 'behind'") : readContainerFile(file);
+                String stored = storedBehindView(dir);
                 assertFails(statement, "CREATE VIEW " + catalog + ".behind.v AS SELECT 2 AS x", "already exists");
-                assertEquals(catalog.equals("testjdbc") ? queryPostgres("SELECT definition FROM viewzoo WHERE schema = 'behind'") : readContainerFile(file), stored);
+                assertEquals(storedBehindView(dir), stored);
             } finally {
-                if (catalog.equals("testjdbc")) runPostgres("DELETE FROM viewzoo WHERE schema = 'behind'");
-                else removeContainerFile(file);
+                if (dir == null) runPostgres("DELETE FROM viewzoo WHERE schema = 'behind'");
+                else removeContainerFile(dir + "/behind.v.json");
                 dropViews(statement, catalog + ".template.v");
             }
         }
+    }
+
+    private String storedBehindView(String dir) throws Exception {
+        return (dir == null) ? queryPostgres("SELECT definition FROM viewzoo WHERE schema = 'behind'") : readContainerFile(dir + "/behind.v.json");
     }
 
     // information_schema.views reads every definition, so it fails where a listing of names would not

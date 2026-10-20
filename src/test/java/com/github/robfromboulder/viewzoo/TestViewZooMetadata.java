@@ -182,6 +182,7 @@ public class TestViewZooMetadata {
         @Override
         public void dropView(String schema, String table) {
             if (failWrites) throw new TrinoException(GENERIC_INTERNAL_ERROR, "Simulated storage failure");
+            views.remove(new SchemaTableName(schema, table));
             drops.add(schema + "." + table);
         }
 
@@ -189,6 +190,8 @@ public class TestViewZooMetadata {
         public void renameView(String sourceSchema, String sourceTable, String targetSchema, String targetTable) {
             if (failRename) throw new TrinoException(GENERIC_INTERNAL_ERROR, "Simulated storage failure");
             if (missingOnRename) throw new ViewNotFoundException(new SchemaTableName(sourceSchema, sourceTable));
+            ConnectorViewDefinition definition = views.remove(new SchemaTableName(sourceSchema, sourceTable));
+            if (definition != null) views.put(new SchemaTableName(targetSchema, targetTable), definition);
             renames.add(sourceSchema + "." + sourceTable + "->" + targetSchema + "." + targetTable);
         }
 
