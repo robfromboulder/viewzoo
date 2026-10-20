@@ -145,6 +145,17 @@ public class TestViewZooJdbcClient {
         for (Object resource : resources) assertTrue(isClosed(resource), "Not closed: " + resource);
     }
 
+    @Test(groups = "integration")
+    public void testClosesResourcesOnParseFailure() throws SQLException {
+        try (Connection connection = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
+             Statement statement = connection.createStatement()) {
+            statement.execute("INSERT INTO viewzoo VALUES ('s', 'source', 'not json')");
+        }
+        expectThrows(TrinoException.class, () -> client.getViews());
+        assertTrue(resources.stream().anyMatch(ResultSet.class::isInstance));
+        for (Object resource : resources) assertTrue(isClosed(resource), "Not closed: " + resource);
+    }
+
     private void assertStored(Map<SchemaTableName, String> expectedSql) {
         Map<SchemaTableName, List<Object>> actual = client.getViews().entrySet().stream().collect(toMap(Map.Entry::getKey, e -> fields(e.getValue())));
         Map<SchemaTableName, List<Object>> expected = expectedSql.entrySet().stream().collect(toMap(Map.Entry::getKey, e -> fields(definition(e.getValue()))));
