@@ -68,7 +68,7 @@ public class TestViewZooMetadata {
         assertEquals(metadata.listTables(null, Optional.of("t")), List.of(TARGET));
     }
 
-    // the connector holds no tables; these pin the placeholder results of table methods Trino 483 never calls
+    // the connector holds no tables, so lookups return the SPI's not-found null and properties are empty; no integration test reaches these
     @Test
     public void testTableMethods() {
         assertNull(metadata.getTableHandle(null, SOURCE, Optional.empty(), Optional.empty()));

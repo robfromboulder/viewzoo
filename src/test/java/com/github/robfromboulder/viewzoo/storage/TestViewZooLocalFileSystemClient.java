@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
@@ -194,11 +195,12 @@ public class TestViewZooLocalFileSystemClient {
     }
 
     @Test
-    public void testCreateSucceedsWhenTempDeleteFails() throws IOException {
-        client = newClient(path -> path.getFileName().toString().startsWith(".viewzoo-"));
+    public void testCreateSucceedsWhenTempDeleteFails() {
+        AtomicBoolean failed = new AtomicBoolean();
+        client = newClient(path -> path.getFileName().toString().startsWith(".viewzoo-"), path -> failed.set(true));
         client.createView("s", "t", DEFINITION, false);
+        assertTrue(failed.get(), "Expected the temp delete to fail");
         assertEquals(newClient().getViews().keySet(), Set.of(new SchemaTableName("s", "t")));
-        assertTrue(files().stream().anyMatch(f -> f.startsWith("views/.viewzoo-")), "Expected the temp file to remain");
     }
 
     @Test
@@ -232,13 +234,27 @@ public class TestViewZooLocalFileSystemClient {
         assertEquals(files(), Set.of("views/s.source.json", "views/t.target.json"));
     }
 
-    // a delete that removed the source but still reported failure leaves the target as the only copy
+    // a delete that removed the source but still reported failure leaves the target as the only copy, so the rename completed
     @Test
-    public void testRenameKeepsTargetWhenFailedDeleteRemovedSource() throws IOException {
+    public void testRenameCompletesWhenFailedDeleteRemovedSource() throws IOException {
         Files.writeString(dir.resolve("s.source.json"), "source");
-        client = newClient(path -> path.getFileName().toString().equals("s.source.json"), true);
-        expectThrows(TrinoException.class, () -> client.renameView("s", "source", "t", "target"));
+        client = newClient(path -> path.getFileName().toString().equals("s.source.json"), Files::delete);
+        client.renameView("s", "source", "t", "target");
         assertEquals(files(), Set.of("views/t.target.json"));
+        assertEquals(Files.readString(dir.resolve("t.target.json")), "source");
+    }
+
+    @Test
+    public void testRenameKeepsTargetReplacedBeforeRollback() throws IOException {
+        Path target = dir.resolve("t.target.json");
+        Files.writeString(dir.resolve("s.source.json"), "source");
+        client = newClient(path -> path.getFileName().toString().equals("s.source.json"), path -> {
+            Files.delete(target);
+            Files.writeString(target, "other");
+        });
+        assertKeepsCause(expectThrows(TrinoException.class, () -> client.renameView("s", "source", "t", "target")));
+        assertEquals(Files.readString(dir.resolve("s.source.json")), "source");
+        assertEquals(Files.readString(target), "other");
     }
 
     // an execute-only directory resolves the target but can't be listed
@@ -362,22 +378,25 @@ public class TestViewZooLocalFileSystemClient {
     }
 
     private ViewZooLocalFileSystemClient newClient(Predicate<Path> failDelete) {
-        return newClient(failDelete, false);
+        return newClient(failDelete, path -> {});
     }
 
-    // deleteBeforeFailing simulates a delete that took effect but still reported an error
-    private ViewZooLocalFileSystemClient newClient(Predicate<Path> failDelete, boolean deleteBeforeFailing) {
+    // beforeFailing runs just before a simulated failure, to change storage the way a racing writer or a partly failed delete would
+    private ViewZooLocalFileSystemClient newClient(Predicate<Path> failDelete, PathAction beforeFailing) {
         return new ViewZooLocalFileSystemClient(new ViewZooFilesystemConfig().setDir(dir.toString()), ViewZooStorageClientProvider.createObjectMapper()) {
             @Override
             void deleteFile(Path path) throws IOException {
-                if (!failDelete.test(path)) {
-                    super.deleteFile(path);
-                    return;
+                if (failDelete.test(path)) {
+                    beforeFailing.run(path);
+                    throw new IOException("Simulated delete failure");
                 }
-                if (deleteBeforeFailing) super.deleteFile(path);
-                throw new IOException("Simulated delete failure");
+                super.deleteFile(path);
             }
         };
+    }
+
+    private interface PathAction {
+        void run(Path path) throws IOException;
     }
 
     // skips rather than passes vacuously when run as a user who ignores permissions, such as root
