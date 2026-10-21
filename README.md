@@ -35,8 +35,8 @@ export TRINO_HOME=$HOME/Downloads/trino-483
 
 Download and install the newest connector release for Trino 483:
 ```bash
-URL=$(curl -fsSL "https://api.github.com/repos/robfromboulder/viewzoo/releases?per_page=100" | grep -o 'https://[^"]*/viewzoo-483[a-z]\.zip' | sort | tail -1)
-curl -fsSL -o /tmp/viewzoo-483.zip "$URL"
+URL=$(curl -fsSL "https://api.github.com/repos/robfromboulder/viewzoo/releases?per_page=100" | grep -o 'https://[^"]*/viewzoo-483[a-z]\.zip' | sort | tail -1) &&
+curl -fsSL -o /tmp/viewzoo-483.zip "$URL" &&
 rm -rf $TRINO_HOME/plugin/viewzoo && unzip -q /tmp/viewzoo-483.zip -d $TRINO_HOME/plugin && mv $TRINO_HOME/plugin/viewzoo-483 $TRINO_HOME/plugin/viewzoo
 ```
 
