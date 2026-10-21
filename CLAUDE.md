@@ -153,12 +153,11 @@ Releases are built on Rob's Mac and published only when Rob asks for one. A rele
    mvn clean package && mvn test -Pintegration
    ```
 
-3. Name the artifact and compute its checksum.
+3. Name the artifact.
 
    ```bash
    mkdir -p target/release/catalog
    cp target/viewzoo-$VERSION.zip target/release/viewzoo-$TAG.zip
-   (cd target/release && shasum -a 256 viewzoo-$TAG.zip)
    ```
 
 4. Install the zip into a clean Trino and confirm it creates and queries a view. The last command prints `"1"`. If the wait never ends, `docker logs viewzoo-release` shows why Trino didn't start.
@@ -173,10 +172,10 @@ Releases are built on Rob's Mac and published only when Rob asks for one. A rele
    docker rm -f viewzoo-release
    ```
 
-5. Create a draft release of the tested commit, putting the checksum from step 3 in the notes.
+5. Create a draft release of the tested commit.
 
    ```bash
-   gh release create $TAG target/release/viewzoo-$TAG.zip --draft --target "$(git rev-parse HEAD)" --title "ViewZoo $TAG" --notes "Plugin for Trino $VERSION. SHA-256 of viewzoo-$TAG.zip: <checksum>"
+   gh release create $TAG target/release/viewzoo-$TAG.zip --draft --target "$(git rev-parse HEAD)" --title "ViewZoo $TAG" --notes "Plugin for Trino $VERSION."
    ```
 
 6. Give Rob the draft's URL, and publish only after Rob approves it. Publishing creates the tag.
