@@ -165,7 +165,7 @@ Releases are built on Rob's Mac and published only when Rob asks for one. A rele
 
    ```bash
    docker rm -f viewzoo-release 2>/dev/null
-   unzip -q target/release/viewzoo-$TAG.zip -d target/release
+   unzip -oq target/release/viewzoo-$TAG.zip -d target/release
    printf 'connector.name=viewzoo\nviewzoo.storage_type=filesystem\nviewzoo.dir=/home/trino\n' > target/release/catalog/viewzoo.properties
    docker run -d --name viewzoo-release -v "$PWD/target/release/viewzoo-$VERSION:/usr/lib/trino/plugin/viewzoo" -v "$PWD/target/release/catalog:/etc/trino/catalog" trinodb/trino:$VERSION
    until docker exec viewzoo-release trino --execute 'SELECT 1' >/dev/null 2>&1; do sleep 2; done
