@@ -4,6 +4,7 @@
 [![CodeFactor](https://www.codefactor.io/repository/github/robfromboulder/viewzoo/badge)](https://www.codefactor.io/repository/github/robfromboulder/viewzoo)
 [![Contributing](https://img.shields.io/badge/contributions-welcome-green.svg)](https://github.com/robfromboulder/viewzoo/blob/v483/CONTRIBUTING.md)
 [![License](https://img.shields.io/github/license/robfromboulder/viewzoo)](https://github.com/robfromboulder/viewzoo/blob/v483/LICENSE)
+[![Security](https://img.shields.io/badge/security-policy-blue.svg)](https://github.com/robfromboulder/viewzoo/blob/v483/SECURITY.md)
 
 This Trino connector stores views to the local filesystem or a Postgresql database, without requiring Hive metastore or object storage services.
 
