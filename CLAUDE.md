@@ -42,6 +42,9 @@ mvn clean package && rm -rf $TRINO_HOME/plugin/viewzoo && cp -r ./target/viewzoo
 # Check dependency updates
 mvn versions:display-dependency-updates
 
+# Scan for known vulnerabilities
+trivy filesystem .
+
 # Run integration tests
 mvn test -Pintegration
 ```
