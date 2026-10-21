@@ -40,7 +40,6 @@ public class ViewZooMetadata implements ConnectorMetadata {
     }
 
     private final ViewZooStorageClient storageClient;
-    // updated only after storage succeeds, so a storage failure leaves the cache unchanged
     private final Map<SchemaTableName, ConnectorViewDefinition> views;
 
     @Override

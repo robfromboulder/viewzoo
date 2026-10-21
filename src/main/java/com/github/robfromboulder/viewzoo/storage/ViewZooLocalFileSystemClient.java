@@ -36,7 +36,10 @@ public class ViewZooLocalFileSystemClient implements ViewZooStorageClient {
 
     private static final Logger log = Logger.get(ViewZooLocalFileSystemClient.class);
 
-    // Linux's limit, enforced on macOS too so a view directory written on either loads on both
+    /**
+     * Longest view file name accepted, in UTF-8 bytes. Linux's limit, enforced on macOS too so a view directory written on
+     * either loads on both.
+     */
     private static final int MAX_FILE_NAME_BYTES = 255;
 
     public ViewZooLocalFileSystemClient(ViewZooFilesystemConfig config, ObjectMapper mapper) {
@@ -73,13 +76,11 @@ public class ViewZooLocalFileSystemClient implements ViewZooStorageClient {
         validateName(schema, table);
         Path path = viewPath(schema, table);
         requireNoConflictingFile(path, schema, table);
-        // written whole beside the view's file, so a failed write never truncates it; link(2) refuses an existing target
-        // atomically, as in renameView
-        Path temp = dir.toPath().resolve(".viewzoo-" + UUID.randomUUID() + ".tmp");
+        Path temp = dir.toPath().resolve(".viewzoo-" + UUID.randomUUID() + ".tmp"); // written beside the view's file, so a failed write never truncates it
         try {
             Files.writeString(temp, mapper.writeValueAsString(definition));
             if (replace) Files.move(temp, path, ATOMIC_MOVE);
-            else Files.createLink(path, temp);
+            else Files.createLink(path, temp); // link(2) atomically refuses an existing target
         } catch (FileAlreadyExistsException e) {
             throw new TrinoException(ALREADY_EXISTS, "View already exists: " + new SchemaTableName(schema, table), e);
         } catch (IOException e) {
@@ -89,7 +90,10 @@ public class ViewZooLocalFileSystemClient implements ViewZooStorageClient {
         }
     }
 
-    // logs rather than throws, since throwing after the link would report a completed create as failed
+    /**
+     * Deletes a temp file written by createView. Logs rather than throws, since throwing after the link would report a
+     * completed create as failed.
+     */
     private void deleteTempFile(Path temp) {
         try {
             deleteFile(temp);
@@ -114,9 +118,8 @@ public class ViewZooLocalFileSystemClient implements ViewZooStorageClient {
         Path source = viewPath(sourceSchema, sourceTable);
         Path target = viewPath(targetSchema, targetTable);
         requireNoConflictingFile(target, targetSchema, targetTable);
-        // link(2) atomically refuses an existing target, where Files.move only checks before rename(2) replaces it
         try {
-            Files.createLink(target, source);
+            Files.createLink(target, source); // link(2) atomically refuses an existing target, where Files.move only checks before rename(2) replaces it
         } catch (FileAlreadyExistsException e) {
             throw new TrinoException(ALREADY_EXISTS, "View already exists: " + new SchemaTableName(targetSchema, targetTable), e);
         } catch (NoSuchFileException e) {
@@ -128,15 +131,15 @@ public class ViewZooLocalFileSystemClient implements ViewZooStorageClient {
             deleteFile(source);
         } catch (IOException e) {
             TrinoException failure = new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to delete file: " + source + ": " + e.getMessage(), e);
-            // a delete that removed the source despite reporting failure has completed the rename; notExists and exists are
-            // each true only when confirmed, so an unreadable state falls through to the rollback
+            // a delete that removed the source despite reporting failure has completed the rename
+            // notExists and exists are each true only when confirmed, so an unreadable state falls through to the rollback
             if (Files.notExists(source) && Files.exists(target)) {
                 log.warn("Rename completed despite a failed delete: %s: %s", source, e.getMessage());
                 return;
             }
-            // the target is removed only while it is still a second link to the source, which narrows but can't close the
-            // window in which another writer replaces it
             try {
+                // the target is removed only while it is still a second link to the source
+                // this narrows but can't close the window in which another writer replaces it
                 if (Files.isSameFile(source, target)) deleteFile(target);
             } catch (IOException rollback) {
                 failure.addSuppressed(rollback);
@@ -145,9 +148,47 @@ public class ViewZooLocalFileSystemClient implements ViewZooStorageClient {
         }
     }
 
-    // overridable so tests can fail a delete that follows a link, which needs the same directory permission the link used
+    /**
+     * Deletes a file if it exists. Overridable so tests can fail a delete that follows a link, which needs the same directory
+     * permission the link used.
+     */
     void deleteFile(Path path) throws IOException {
         Files.deleteIfExists(path);
+    }
+
+    private static String fileName(String schema, String table) {
+        return schema + "." + table + ".json";
+    }
+
+    private static boolean isLoadableFile(String name) {
+        return isLoadable(name) && isStorable(name);
+    }
+
+    /**
+     * Returns whether a schema or table name can be stored in a file name identically on Linux and macOS. '/' and NUL are the
+     * only characters either forbids in a filename. NFC is required because macOS filesystems ignore normalization differences.
+     */
+    private static boolean isStorable(String name) {
+        return name.indexOf('/') < 0 && name.indexOf('\0') < 0 && Normalizer.isNormalized(name, Normalizer.Form.NFC);
+    }
+
+    private ConnectorViewDefinition parse(File f) throws IOException {
+        ConnectorViewDefinition definition = mapper.readValue(f, ConnectorViewDefinition.class);
+        // the JSON literal null parses without error to no definition
+        if (definition == null) throw new IOException("Definition is JSON null");
+        return definition;
+    }
+
+    private void requireNoConflictingFile(Path path, String schema, String table) {
+        if (!Files.exists(path)) return;
+        String name = path.getFileName().toString();
+        try (Stream<Path> files = Files.list(dir.toPath())) {
+            // a case-insensitive filesystem resolves the path to a file stored under a different name
+            if (files.noneMatch(p -> p.getFileName().toString().equals(name)))
+                throw new TrinoException(ALREADY_EXISTS, "View conflicts with an existing view file in filesystem storage: " + new SchemaTableName(schema, table));
+        } catch (IOException e) {
+            throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to list directory: " + dir + ": " + e.getMessage(), e);
+        }
     }
 
     private static void validateName(String schema, String table) {
@@ -160,40 +201,10 @@ public class ViewZooLocalFileSystemClient implements ViewZooStorageClient {
         }
     }
 
-    // '/' and NUL are the only characters Linux and macOS forbid in a filename; NFC keeps a name identical on Linux and
-    // macOS, whose filesystems ignore normalization differences
-    private static boolean isStorable(String name) {
-        return name.indexOf('/') < 0 && name.indexOf('\0') < 0 && Normalizer.isNormalized(name, Normalizer.Form.NFC);
-    }
-
-    private static boolean isLoadableFile(String name) {
-        return isLoadable(name) && isStorable(name);
-    }
-
-    // the JSON literal null parses without error to no definition
-    private ConnectorViewDefinition parse(File f) throws IOException {
-        ConnectorViewDefinition definition = mapper.readValue(f, ConnectorViewDefinition.class);
-        if (definition == null) throw new IOException("Definition is JSON null");
-        return definition;
-    }
-
-    // a case-insensitive filesystem resolves the path to a file stored under a different name
-    private void requireNoConflictingFile(Path path, String schema, String table) {
-        if (!Files.exists(path)) return;
-        String name = path.getFileName().toString();
-        try (Stream<Path> files = Files.list(dir.toPath())) {
-            if (files.noneMatch(p -> p.getFileName().toString().equals(name)))
-                throw new TrinoException(ALREADY_EXISTS, "View conflicts with an existing view file in filesystem storage: " + new SchemaTableName(schema, table));
-        } catch (IOException e) {
-            throw new TrinoException(GENERIC_INTERNAL_ERROR, "Failed to list directory: " + dir + ": " + e.getMessage(), e);
-        }
-    }
-
-    private static String fileName(String schema, String table) {
-        return schema + "." + table + ".json";
-    }
-
-    // refuses any name that resolves outside the flat directory layout, independent of the name rules above
+    /**
+     * Returns the path of a view's file in the view directory. Refuses any name that resolves outside the flat directory
+     * layout, independent of {@link #validateName}.
+     */
     private Path viewPath(String schema, String table) {
         try {
             Path path = dir.toPath().resolve(fileName(schema, table));

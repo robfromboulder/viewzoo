@@ -19,7 +19,10 @@ public interface ViewZooStorageClient {
 
     void renameView(String sourceSchema, String sourceTable, String targetSchema, String targetTable);
 
-    // Trino lowercases identifiers, so any other name would load as a view whose operations miss its stored entry
+    /**
+     * Returns whether a stored schema or table name can be loaded as a view. Trino lowercases identifiers, so any other name
+     * would load as a view whose operations miss its stored entry.
+     */
     static boolean isLoadable(String name) {
         return name != null && !name.isEmpty() && name.equals(name.toLowerCase(ENGLISH));
     }
