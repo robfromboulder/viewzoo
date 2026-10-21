@@ -1,33 +1,23 @@
 # Contributing to ViewZoo
 
-This project uses [Claude Code](https://claude.ai/code) for development and test automation. See `CLAUDE.md` for project-specific instructions.
+ViewZoo is developed with [Claude Code](https://claude.ai/code). Contributions are expected to be written, tested and reviewed in a Claude Code session, which reads `CLAUDE.md` for the build, test and style rules.
 
-## Applying Security Updates
+## Prerequisites
 
-Scan for newer library versions:
-```bash
-mvn versions:display-dependency-updates
-```
+- Claude Code
+- Java and Maven and Trino, as listed in the README
+- Docker with the Compose v2 plugin (`docker compose`), for integration tests
+- [Trivy](https://trivy.dev), for security scans
 
-Scan for known vulnerabilities:
-```bash
-trivy filesystem .
-```
+## Workflow
 
-## Running Integration Tests
+1. Check out the branch for the Trino version you're targeting (e.g. `v483`). `main` isn't used for development, and PRs target the version branch.
+2. Create a feature branch from it and open a Claude Code session in the repo.
+3. Describe your change, and ask Claude to implement it with tests.
+4. Ask Claude to run the unit tests and the integration tests.
+5. If the change touches filesystem storage, ask Claude to walk you through the manual tests, since the integration tests run Trino only on Linux.
+6. Review the diff yourself, then ask Claude to commit and open a PR against the version branch.
 
-These tests start Postgresql and Trino in local containers, exercise views using both filesystem and JDBC storage, and then shut down all containers (removing all volumes created during the test).
+## Security Updates
 
-> [!IMPORTANT]
-> Integration tests require `docker-compose` and network access to download Postgresql and Trino containers.
-
-> [!IMPORTANT]
-> Integration tests should exercise all features related to views, and there should be no differences in functional behavior between filesystem and JDBC configurations.
-
-> [!TIP]
-> Integration tests use port 7721 (for Trino) to avoid conflict with local services.
-
-Run integration test profile:
-```bash
-mvn test -Pintegration
-```
+Ask Claude to check for newer dependency versions and to scan the repo with Trivy, then follow the same workflow for any upgrades.
