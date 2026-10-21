@@ -143,8 +143,9 @@ Releases are built on Rob's Mac and published only when Rob asks for one. A rele
 
    ```bash
    git status --porcelain
-   git fetch origin && git rev-parse HEAD | grep -vx "$(git rev-parse origin/v$VERSION)"
+   git fetch -q origin && git rev-parse HEAD | grep -vx "$(git rev-parse origin/v$VERSION)"
    git ls-remote --tags origin $TAG
+   gh release list --limit 1000 --json tagName -q ".[] | select(.tagName == \"$TAG\") | .tagName"
    ```
 
 2. Build and run every test.
@@ -160,9 +161,10 @@ Releases are built on Rob's Mac and published only when Rob asks for one. A rele
    cp target/viewzoo-$VERSION.zip target/release/viewzoo-$TAG.zip
    ```
 
-4. Install the zip into a clean Trino and confirm it creates and queries a view. The last command prints `"1"`. If the wait never ends, `docker logs viewzoo-release` shows why Trino didn't start.
+4. Install the zip into a clean Trino and confirm it creates and queries a view. The final `SELECT` prints `"1"`. If the wait never ends, `docker logs viewzoo-release` shows why Trino didn't start.
 
    ```bash
+   docker rm -f viewzoo-release 2>/dev/null
    unzip -q target/release/viewzoo-$TAG.zip -d target/release
    printf 'connector.name=viewzoo\nviewzoo.storage_type=filesystem\nviewzoo.dir=/home/trino\n' > target/release/catalog/viewzoo.properties
    docker run -d --name viewzoo-release -v "$PWD/target/release/viewzoo-$VERSION:/usr/lib/trino/plugin/viewzoo" -v "$PWD/target/release/catalog:/etc/trino/catalog" trinodb/trino:$VERSION
