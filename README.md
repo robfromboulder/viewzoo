@@ -15,6 +15,7 @@ Contents:
 * [Running With JDBC Storage](#running-with-jdbc-storage)
 * [Using Views](#using-views)
 * [Limitations](#limitations)
+* [Why ViewZoo?](#why-viewzoo)
 
 > [!NOTE]
 > This project is not officially endorsed or supported by Starburst.
@@ -50,8 +51,7 @@ mvn clean package && rm -rf $TRINO_HOME/plugin/viewzoo && cp -r ./target/viewzoo
 
 ## Running With Filesystem Storage
 
-Views can be stored directly on the Trino server's filesystem (as JSON files), without requiring any other infrastructure.
-This option is intended for development and prototyping, and for very lightweight deployments.
+Filesystem storage keeps each view as a JSON file in a directory on the Trino server, without requiring any other infrastructure.
 
 Create a local directory to store views:
 ```bash
@@ -83,12 +83,9 @@ cd $TRINO_HOME && bash bin/launcher run
 > [!NOTE]
 > Filesystem storage supports Linux and macOS, on a filesystem that supports hard links, which creating and renaming views require; some network and FUSE mounts don't. A crash while writing a view can leave a hidden `.viewzoo-*.tmp` file in `viewzoo.dir`, which is ignored and safe to delete. Each view is stored as a `schema.table.json` file, so it rejects schema or table names containing `/` or a NUL character, names not in Unicode NFC form, and names whose file name would exceed 255 bytes in UTF-8. On a case-insensitive filesystem, it also rejects a view that the filesystem would store in another view's file. On startup, it skips with a warning any `.json` file whose name isn't a lowercase NFC `schema.table.json` or whose contents aren't a view definition. JDBC storage also rejects names containing a NUL character, and on startup skips with a warning any row whose schema or view name is empty or not lowercase, or whose definition isn't a view definition. Both storage types reject schema and table names containing `.` and limit them to 100 characters.
 
-> [!TIP]
-> Filesystem storage enables a unique collaboration pattern: teams can share view definitions through git without requiring a traditional database or network file share. By storing views as JSON files in a version-controlled directory, view definitions become part of your application's source code, with full revision history, pull request reviews, and branch-based development. This approach is particularly valuable for development environments, CI/CD pipelines, and scenarios where you need view definitions to be as portable and reviewable as your application code itself.
-
 ## Running With JDBC Storage
 
-Views can alternatively be stored as rows in a local or remote Postgres database. This option is preferred for multi-container and Kubernetes deployments, and production environments in general. JDBC storage makes it easy to include views in regular database backups and avoids the sharing, permission, and upgrade issues that can occur with filesystem storage in containerized production environments. 
+JDBC storage keeps views as rows in one `viewzoo` table of a local or remote Postgres database.
 
 Run a local Postgres server if necessary:
 ```bash
@@ -111,6 +108,19 @@ cd $TRINO_HOME && bash bin/launcher run
 
 > [!CAUTION]
 > Trino will fail to start if Postgres is not running or reachable, or if JDBC authentication fails.
+
+To query the stored definitions from Trino, create a `$TRINO_HOME/etc/catalog/pg.properties` configuration file for the PostgreSQL connector, pointing at the same database:
+```bash
+connector.name=postgresql
+connection-url=jdbc:postgresql://localhost:5432/postgres
+connection-user=postgres
+connection-password=secretpassword
+```
+
+After restarting Trino, list every stored view:
+```sql
+select schema, view_name from pg.public.viewzoo order by schema, view_name
+```
 
 When finished testing, remove local Postgres server:
 ```bash
@@ -172,7 +182,24 @@ drop view viewzoo.example.greeting
 > Materialized views are not supported. Use Iceberg for view storage in this case.
 
 > [!CAUTION]
+> Views are loaded when Trino starts. A view changed outside this connector, such as a file synced from git, a row written to the `viewzoo` table, or a view created by another Trino cluster sharing the same storage, is seen only after Trino restarts.
+
+> [!CAUTION]
 > While this connector probably works with multiple versions of Trino, it has only been tested with Trino 483.
+
+## Why ViewZoo?
+
+ViewZoo isn't a replacement for the PostgreSQL connector. ViewZoo uses Postgres to **store** Trino views, but those views can query any catalog.
+
+| Where views are stored | Tradeoffs |
+|---|---|
+| Memory connector | Views can use any connector, but are lost when Trino restarts. Good performance for a reasonable number of views. It's built into Trino, so there's nothing to install, run or pay for. |
+| PostgreSQL connector | The connector can't create Trino views. Native Postgres views are written in Postgres SQL, can only read Postgres tables, and follow Postgres permissions instead of Trino's. Because a native view runs inside Postgres, it suits teams whose data and DBAs are already there. |
+| Hive metastore or AWS Glue | A Hive metastore is a service to run, secure and upgrade, and it needs a database of its own. Glue removes that work but ties your view storage to AWS. In return, one metastore can serve Spark, Hive and Trino across a large organization. When it's down, every catalog that depends on it stops. |
+| Iceberg JDBC catalog | There's no catalog service to run, and the database can be one you already operate. You also need a warehouse (usually an object store) for Iceberg's metadata files. The two must be backed up together, because the database points at files in the warehouse. |
+| Iceberg REST catalog | You need a REST catalog service plus an object store. You either run the catalog yourself, such as Polaris or Lakekeeper, or pay for a managed one. Highest complexity of any option here. In return, large organizations get central access control and short-lived storage credentials, shared by every engine that uses the catalog. |
+| ViewZoo (filesystem storage) | You need a directory, which can be a git checkout. Each view is a JSON file, so view definitions become code, with revision history, pull request reviews, and branch-based development. Views are deployed by syncing the directory to the Trino server and restarting Trino. In a container, the directory must be a persistent volume. When the directory is a git checkout, every committed view survives losing the server. |
+| ViewZoo (JDBC storage) | You need a Postgres database, where views take one table. Views survive containers being replaced, land in the database's regular backups, and can be listed with SQL, including from Trino through the PostgreSQL connector. A change made by another Trino cluster sharing the table is seen only after a restart. Once Trino is running, views keep working through a Postgres outage, but can't be created or changed until it returns. |
 
 ---
 <small>&copy; 2024-2026 Rob Dickinson (robfromboulder)</small>
